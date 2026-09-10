@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>장면 맥락과 물체 재인 — 실험 재현</title>
+<style>
+  :root {
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-sub: #F1F5F9;
+    --border: #E2E8F0;
+    --border-strong: #CBD5E1;
+    --text-main: #0F172A;
+    --text-muted: #64748B;
+    --primary: #2563EB;
+    --primary-light: #EFF6FF;
+    --accent: #0D9488;
+    --accent-light: #CCFBF1;
+    --danger: #EF4444;
+    --stage-bg: #808080;
+    --font-ui: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "Cascadia Code", Roboto Mono, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background-color: var(--bg);
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; font-size: inherit; cursor: pointer; border: none; }
+  input, select { font-family: inherit; font-size: inherit; }
+
+  /* ---------- 설정 화면 ---------- */
+  #setup { max-width: 1080px; margin: 0 auto; padding: 48px 24px 80px; }
+  
+  header.top {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 24px; flex-wrap: wrap; padding-bottom: 24px; border-bottom: 2px solid var(--text-main);
+  }
+  .title-area h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; }
+  .title-area .cite { color: var(--text-muted); font-size: 13.5px; margin: 0; }
+  
+  .clock {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 16px; min-width: 200px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .clock .k { font-size: 11px; text-transform: uppercase; font-weight: 600; color: var(--text-muted); letter-spacing: 0.05em; }
+  .clock .v { font-family: var(--font-mono); font-size: 20px; font-weight: 600; color: var(--primary); margin-top: 2px; }
+  .clock .v small { font-size: 12px; color: var(--text-muted); font-family: var(--font-ui); font-weight: 400; }
+
+  .grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 28px; margin-top: 32px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+  section.card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  }
+  section.card + section.card { margin-top: 20px; }
+  h2 { font-size: 16px; font-weight: 700; margin: 0 0 4px; color: var(--text-main); }
+  .hint { color: var(--text-muted); font-size: 13px; margin: 0 0 18px; line-height: 1.4; }
+
+  .exps { display: grid; gap: 8px; }
+  .exp {
+    display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start;
+    border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;
+    background: var(--surface); cursor: pointer; transition: all 0.15s ease;
+  }
+  .exp:hover { border-color: var(--border-strong); background: var(--surface-sub); }
+  .exp input { margin-top: 3px; accent-color: var(--primary); }
+  .exp b { font-weight: 600; display: block; font-size: 14px; color: var(--text-main); }
+  .exp span { color: var(--text-muted); font-size: 13px; margin-top: 2px; display: block; }
+  .exp.on { border-color: var(--primary); background: var(--primary-light); }
+
+  .rows { display: grid; gap: 14px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .row label { color: var(--text-main); font-size: 13.5px; font-weight: 500; }
+  .row input[type=number], .row input[type=text], .row select {
+    background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-main);
+    border-radius: 6px; padding: 8px 12px; width: 120px; font-family: var(--font-mono); font-size: 13.5px;
+    transition: border-color 0.15s ease;
+  }
+  .row input[type=text] { font-family: var(--font-ui); width: 180px; }
+  .row input:focus, .row select:focus, button:focus-visible {
+    outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+  }
+
+  .stages { display: grid; gap: 6px; font-family: var(--font-mono); font-size: 13px; }
+  .stage-row {
+    display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 9px 12px;
+    background: var(--surface-sub); border-radius: 6px; color: var(--text-muted);
+  }
+  .stage-row span:first-child { font-family: var(--font-ui); color: var(--text-main); font-weight: 500; }
+  .stage-row.key { background: #FEF3C7; border: 1px solid #FCD34D; color: #92400E; }
+  .stage-row.key span:first-child { color: #78350F; font-weight: 700; }
+
+  .go {
+    margin-top: 28px; width: 100%; padding: 14px; border-radius: 8px;
+    background: var(--primary); color: #FFF; font-weight: 600; font-size: 15px;
+    transition: background-color 0.15s ease, transform 0.05s ease;
+  }
+  .go:hover { background: #1D4ED8; }
+  .go:active { transform: translateY(1px); }
+  
+  .ghost {
+    background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-main);
+    padding: 8px 14px; border-radius: 6px; font-weight: 500; font-size: 13.5px;
+    transition: all 0.15s ease;
+  }
+  .ghost:hover { background: var(--surface-sub); border-color: var(--text-main); }
+
+  .filebox { border: 1px dashed var(--border-strong); border-radius: 8px; padding: 16px; margin-top: 10px; background: var(--surface-sub); }
+  .filebox p { margin: 0 0 12px; color: var(--text-muted); font-size: 13px; }
+  .filebox input[type=file] { font-size: 13px; color: var(--text-muted); width: 100%; }
+  .tag { display: inline-block; font-family: var(--font-mono); font-size: 11.5px; color: var(--accent);
+    border: 1px solid var(--accent); background: var(--accent-light); border-radius: 4px; padding: 1px 6px; margin: 3px 2px 0 0; }
+  .notice { color: var(--danger); font-size: 13px; margin-top: 10px; font-weight: 500; }
+
+  /* ---------- 실행 화면 ---------- */
+  #run { position: fixed; inset: 0; background: #0F172A; display: none; align-items: center; justify-content: center; flex-direction: column; }
+  #canvas { background: var(--stage-bg); display: block; max-width: 100vw; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
+  #overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; background: rgba(15, 23, 42, 0.92); color: #F8FAFC; padding: 40px; text-align: center;
+    backdrop-filter: blur(4px);
+  }
+  #overlay .box { max-width: 52ch; }
+  #overlay h3 { font-size: 24px; margin: 0 0 16px; font-weight: 700; color: #FFF; }
+  #overlay p { color: #94A3B8; margin: 0 0 12px; font-size: 15px; }
+  #overlay .keycap { font-family: var(--font-mono); background: #334155; border: 1px solid #475569; color: #F1F5F9; border-radius: 4px; padding: 3px 8px; font-size: 13px; }
+  #answerbar { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); padding: 0; display: none; flex-direction: column; align-items: center; gap: 10px; }
+  #answerbar label { color: #94A3B8; font-size: 14px; font-weight: 500; }
+  #answer {
+    width: 380px; background: #1E293B; border: 2px solid #334155; color: #FFF; font-size: 18px; padding: 12px 18px; border-radius: 8px; text-align: center; outline: none; transition: border-color 0.15s ease;
+  }
+  #answer:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(37,99,235,0.3); }
+  #progress { position: absolute; top: 24px; left: 24px; font-family: var(--font-mono); font-size: 13px; color: #64748B; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 4px; }
+
+  /* ---------- 결과 화면 ---------- */
+  #results { display: none; max-width: 1080px; margin: 0 auto; padding: 48px 24px 90px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 14px; background: var(--surface); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-muted); font-weight: 600; font-size: 12.5px; background: var(--surface-sub); text-transform: uppercase; letter-spacing: 0.03em; }
+  td.n { font-family: var(--font-mono); color: var(--text-muted); }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 24px 0 12px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+  .stat .k { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat .v { font-family: var(--font-mono); font-size: 28px; font-weight: 700; color: var(--text-main); margin-top: 4px; }
+  .score { display: flex; gap: 4px; }
+  .score button { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-muted); border-radius: 5px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
+  .score button.on-o { background: #DCFCE7; border-color: #86EFAC; color: #166534; }
+  .score button.on-x { background: #FEE2E2; border-color: #FCA5A5; color: #991B1B; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; }
+  .paper { color: var(--text-muted); font-size: 13px; margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- ==================== 설정 ==================== -->
+<div id="setup">
+  <header class="top">
+    <div class="title-area">
+      <h1>장면 맥락과 물체 재인</h1>
+      <p class="cite">Munneke, Brentari &amp; Peelen (2013), <i>Frontiers in Psychology</i></p>
+    </div>
+    <div class="clock">
+      <div class="k">화면 주사율 (Refresh Rate)</div>
+      <div class="v"><span id="hz">—</span> <small>Hz · 1프레임 <span id="fdur">—</span> ms</small></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div>
+      <section class="card">
+        <h2>실험 조건 선택</h2>
+        <p class="hint"></p>
+        <div class="exps" id="exps"></div>
+      </section>
+
+      <section class="card">
+        <h2>자극 설정</h2>
+        <p class="hint"></p>
+
+        <div class="rows">
+          <div class="row">
+            <label for="stimSrc">자극 소스</label>
+            <select id="stimSrc" style="width:200px">
+              <option value="builtin">내장 데모 (12쌍)</option>
+              <option value="custom">내 이미지 사용</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filebox" id="customBox" style="display:none">
+          <p>배경 이미지와 물체 이미지를 각각 동일한 개수로 업로드합니다. 정렬 순서대로 <b>n번째 배경 = n번째 물체</b>가 일치 장면으로 짝지어집니다.</p>
+          <label style="display:block;margin-bottom:10px">
+            <span style="color:var(--text-muted);font-size:12.5px;font-weight:600">배경 이미지 (JPG / PNG)</span><br>
+            <input type="file" id="bgFiles" accept="image/*" multiple style="margin-top:4px">
+          </label>
+          <label style="display:block">
+            <span style="color:var(--text-muted);font-size:12.5px;font-weight:600">물체 이미지 (PNG 투명 배경 권장)</span><br>
+            <input type="file" id="objFiles" accept="image/*" multiple style="margin-top:4px">
+          </label>
+          <div id="customStatus" class="notice"></div>
+        </div>
+      </section>
+    </div>
+
+    <div>
+      <section class="card">
+        <h2>시행 구조 (Timing)</h2>
+        <p class="hint"></p>
+        <div class="stages" id="stageList"></div>
+      </section>
+
+      <section class="card">
+        <h2>세션 파라미터</h2>
+        <div class="rows">
+          <div class="row"><label for="pid">참가자 ID</label><input type="text" id="pid" value="P01"></div>
+          <div class="row"><label for="nTrials">본시행 수 (일치/불일치 반반)</label><input type="number" id="nTrials" value="12" min="4" max="12" step="2"></div>
+          <div class="row"><label for="nPractice">연습 시행 수</label><input type="number" id="nPractice" value="2" min="0" max="4"></div>
+          <div class="row"><label for="fixMs">응시점 (ms)</label><input type="number" id="fixMs" value="300" step="50"></div>
+          <div class="row"><label for="blankMs">공백 (ms)</label><input type="number" id="blankMs" value="200" step="50"></div>
+          <div class="row"><label for="sceneMs">장면 제시 (ms)</label><input type="number" id="sceneMs" value="80" step="10"></div>
+          <div class="row"><label for="maskMs">마스크 (ms)</label><input type="number" id="maskMs" value="200" step="50"></div>
+        </div>
+        <button class="go" id="start">실험 시작하기</button>
+        <p class="paper" id="startNote" style="margin-top:14px; text-align:center; font-size:12.5px;"></p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 실행 ==================== -->
+<div id="run">
+  <canvas id="canvas" width="640" height="480"></canvas>
+  <div id="progress"></div>
+  <div id="overlay"><div class="box" id="overlayBox"></div></div>
+  <div id="answerbar">
+    <label for="answer">무엇을 보셨습니까? 물체의 이름을 입력 후 Enter 키를 누르세요.</label>
+    <input type="text" id="answer" autocomplete="off" autocorrect="off" spellcheck="false">
+  </div>
+</div>
+
+<!-- ==================== 결과 ==================== -->
+<div id="results">
+  <header class="top">
+    <div class="title-area">
+      <h1>실험 세션 결과</h1>
+      <p class="cite" id="resMeta"></p>
+    </div>
+    <button class="ghost" id="again">새 세션 시작</button>
+  </header>
+  <div class="summary" id="resSummary"></div>
+  <section class="card" style="margin-top:24px">
+    <h2>시행별 응답 및 평정 데이터</h2>
+    <p class="hint">자동 채점은 설정된 키워드 포함 여부 기준입니다. 논문 절차대로 블라인드 평가를 시행하려면 '평정용 CSV'를 내보내 확인하세요.</p>
+    <div style="overflow-x:auto"><table id="trialTable"></table></div>
+    <div class="actions">
+      <button class="ghost" id="csvFull">전체 데이터 CSV 내보내기</button>
+      <button class="ghost" id="csvBlind">블라인드 평정용 CSV 내보내기</button>
+    </div>
+  </section>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   1. 내장 데모 자극 — 장면은 도형으로 그리고, 물체는 글리프로 얹습니다.
+   ========================================================= */
+const SCENES = [
+  {id:"road",  name:"도로",   sky:["#7FA9DC","#CFE0F2"], ground:"#585C63", els:[
+    {t:"rect",x:0,y:.60,w:1,h:.05,c:"#3E4A38"},{t:"rect",x:0,y:.79,w:1,h:.035,c:"#E9E4D2"},
+    {t:"rect",x:.16,y:.79,w:.1,h:.035,c:"#585C63"},{t:"rect",x:.46,y:.79,w:.1,h:.035,c:"#585C63"},
+    {t:"rect",x:.76,y:.79,w:.1,h:.035,c:"#585C63"},{t:"rect",x:.05,y:.44,w:.03,h:.18,c:"#7B7F86"}]},
+  {id:"farm",  name:"밭",     sky:["#93B7DF","#DCE9F5"], ground:"#7A5B3C", els:[
+    {t:"rect",x:0,y:.55,w:1,h:.06,c:"#4E6B3A"},
+    {t:"rect",x:0,y:.68,w:1,h:.012,c:"#5E432C"},{t:"rect",x:0,y:.76,w:1,h:.012,c:"#5E432C"},
+    {t:"rect",x:0,y:.86,w:1,h:.014,c:"#5E432C"},{t:"rect",x:.72,y:.40,w:.14,h:.16,c:"#8C4A3C"}]},
+  {id:"pitch", name:"축구장", sky:["#5C6B7A","#8DA0AF"], ground:"#3E7A3C", els:[
+    {t:"rect",x:0,y:.60,w:1,h:.004,c:"#E7EFE6"},{t:"rect",x:.5,y:.60,w:.004,h:.4,c:"#E7EFE6"},
+    {t:"circ",x:.5,y:.80,r:.13,c:"#E7EFE6",stroke:true},
+    {t:"rect",x:.06,y:.44,w:.2,h:.16,c:"#D7DEE4"},{t:"rect",x:.74,y:.44,w:.2,h:.16,c:"#D7DEE4"}]},
+  {id:"forest",name:"숲",     sky:["#6E8C63","#B9CBA6"], ground:"#4A5B3A", els:[
+    {t:"rect",x:.12,y:.30,w:.05,h:.45,c:"#4A3524"},{t:"circ",x:.145,y:.28,r:.13,c:"#3F6B3A"},
+    {t:"rect",x:.78,y:.26,w:.06,h:.50,c:"#4A3524"},{t:"circ",x:.81,y:.24,r:.15,c:"#365E32"},
+    {t:"rect",x:.45,y:.36,w:.04,h:.36,c:"#4A3524"},{t:"circ",x:.47,y:.33,r:.10,c:"#457340"}]},
+  {id:"office",name:"사무실", sky:["#D9D3C6","#EDE9DF"], ground:"#8A6A4A", els:[
+    {t:"rect",x:.08,y:.14,w:.34,h:.30,c:"#A9C6DC"},{t:"rect",x:.24,y:.14,w:.012,h:.30,c:"#6E7C88"},
+    {t:"rect",x:0,y:.66,w:1,h:.06,c:"#6F5336"},{t:"rect",x:.66,y:.30,w:.26,h:.34,c:"#B9B2A4"}]},
+  {id:"clinic",name:"병원",   sky:["#DCE6E4","#F1F5F4"], ground:"#C3CCCA", els:[
+    {t:"rect",x:.60,y:.44,w:.34,h:.24,c:"#E8EDEC"},{t:"rect",x:.60,y:.62,w:.34,h:.06,c:"#9FB0AE"},
+    {t:"rect",x:.06,y:.12,w:.20,h:.52,c:"#BCD2CE"},{t:"rect",x:0,y:.70,w:1,h:.02,c:"#A8B4B2"}]},
+  {id:"library",name:"도서관",sky:["#4E3B2C","#6B5138"], ground:"#3C2C20", els:[
+    {t:"rect",x:.04,y:.16,w:.92,h:.03,c:"#2E2118"},{t:"rect",x:.04,y:.42,w:.92,h:.03,c:"#2E2118"},
+    {t:"rect",x:.06,y:.19,w:.03,h:.23,c:"#B8563F"},{t:"rect",x:.10,y:.19,w:.035,h:.23,c:"#CDA45A"},
+    {t:"rect",x:.15,y:.19,w:.03,h:.23,c:"#5A7E9B"},{t:"rect",x:.19,y:.19,w:.04,h:.23,c:"#7C9C63"},
+    {t:"rect",x:.75,y:.45,w:.03,h:.23,c:"#B8563F"},{t:"rect",x:.80,y:.45,w:.035,h:.23,c:"#5A7E9B"}]},
+  {id:"airport",name:"공항",  sky:["#B9C4CE","#E2E8ED"], ground:"#9AA4AD", els:[
+    {t:"rect",x:.05,y:.10,w:.90,h:.34,c:"#C9DCEA"},{t:"rect",x:.35,y:.10,w:.014,h:.34,c:"#7E8A96"},
+    {t:"rect",x:.65,y:.10,w:.014,h:.34,c:"#7E8A96"},
+    {t:"rect",x:.08,y:.60,w:.26,h:.06,c:"#4C5967"},{t:"rect",x:.66,y:.60,w:.26,h:.06,c:"#4C5967"}]},
+  {id:"kitchen",name:"부엌",  sky:["#E4DED2","#F3EFE7"], ground:"#8C7250", els:[
+    {t:"rect",x:0,y:.62,w:1,h:.05,c:"#C9C2B4"},{t:"rect",x:.06,y:.14,w:.30,h:.28,c:"#B6A88F"},
+    {t:"rect",x:.62,y:.14,w:.30,h:.28,c:"#B6A88F"},{t:"rect",x:.36,y:.20,w:.26,h:.20,c:"#D8D2C6"}]},
+  {id:"stage", name:"무대",   sky:["#161A22","#2A3040"], ground:"#3B2E2A", els:[
+    {t:"circ",x:.22,y:.20,r:.09,c:"#4B4A3A"},{t:"circ",x:.78,y:.20,r:.09,c:"#4B4A3A"},
+    {t:"rect",x:0,y:.66,w:1,h:.04,c:"#5B4A42"},{t:"rect",x:.02,y:.08,w:.06,h:.56,c:"#5A2530"},
+    {t:"rect",x:.92,y:.08,w:.06,h:.56,c:"#5A2530"}]},
+  {id:"market",name:"마트",   sky:["#DDE1E4","#F0F2F4"], ground:"#B0B6BA", els:[
+    {t:"rect",x:.04,y:.22,w:.24,h:.42,c:"#8E97A0"},{t:"rect",x:.72,y:.22,w:.24,h:.42,c:"#8E97A0"},
+    {t:"rect",x:.05,y:.30,w:.22,h:.04,c:"#C46A55"},{t:"rect",x:.05,y:.44,w:.22,h:.04,c:"#5E8C6A"},
+    {t:"rect",x:.73,y:.30,w:.22,h:.04,c:"#5A7E9B"},{t:"rect",x:.73,y:.44,w:.22,h:.04,c:"#CDA45A"}]},
+  {id:"cafe",  name:"카페",   sky:["#C9B49A","#E6D9C6"], ground:"#6E5137", els:[
+    {t:"rect",x:0,y:.58,w:1,h:.06,c:"#8A6A46"},{t:"circ",x:.20,y:.74,r:.10,c:"#3F2E20"},
+    {t:"circ",x:.80,y:.74,r:.10,c:"#3F2E20"},{t:"rect",x:.34,y:.14,w:.32,h:.26,c:"#4A3728"}]}
+];
+
+const OBJECTS = [
+  {glyph:"🚗", answers:["자동차","차","승용차","자가용","세단"]},
+  {glyph:"🚜", answers:["트랙터","경운기","농기계"]},
+  {glyph:"⚽", answers:["축구공","공","축구볼"]},
+  {glyph:"⛺", answers:["텐트","천막","캠핑텐트"]},
+  {glyph:"💻", answers:["노트북","랩탑","컴퓨터","노트북컴퓨터"]},
+  {glyph:"💉", answers:["주사기","주사","injection","syringe"]},
+  {glyph:"📚", answers:["책","책더미","도서","책들","서적"]},
+  {glyph:"🧳", answers:["여행가방","캐리어","트렁크","가방","수트케이스"]},
+  {glyph:"🍳", answers:["프라이팬","팬","후라이팬","계란후라이","프라이"]},
+  {glyph:"🎸", answers:["기타","일렉기타","전기기타","일렉트릭기타"]},
+  {glyph:"🛒", answers:["쇼핑카트","카트","장바구니카트","쇼핑카"]},
+  {glyph:"☕", answers:["커피","커피잔","머그컵","머그","컵","찻잔"]}
+];
+
+/* =========================================================
+   2. 실험 정의
+   ========================================================= */
+const EXPERIMENTS = [
+  {id:"e1", name:"실험 1 — 원 연구 재현",
+   desc:"컬러 장면에서 의미 일치/불일치 조건 비교",
+   gray:false, cue:"none",  paper:"논문 결과 · 일치 77.4% vs 불일치 56.0%"},
+  {id:"e2", name:"실험 2 — 저수준 시각 중첩 통제",
+   desc:"모든 자극을 흑백으로 변환",
+   gray:true,  cue:"none",  paper:"논문 결과 · 63.0% vs 49.7%"},
+  {id:"e3a",name:"실험 3a — 공간 주의 ① 사전 단서",
+   desc:"장면 제시 전 위치 단서 제공(유효 단서 67%)",
+   gray:false, cue:"pre",   paper:"논문 결과 · 52.6% vs 46.4%"},
+  {id:"e3b",name:"실험 3b — 공간 주의 ② 팝아웃 단서",
+   desc:"목표 물체 주변에 빨간 사각형을 동시 제시(시행의 50%",
+   gray:false, cue:"popout",paper:"논문 결과 · 56.0% vs 48.8%"}
+];
+
+/* =========================================================
+   3. 상태
+   ========================================================= */
+const S = {
+  exp: EXPERIMENTS[0],
+  frameDur: 16.667,
+  scenes: null,
+  objects: null,
+  trials: [],
+  idx: 0,
+  practice: 0,
+  data: []
+};
+
+const $ = id => document.getElementById(id);
+const cv = $("canvas"), ctx = cv.getContext("2d", {alpha:false});
+const W = cv.width, H = cv.height;
+
+/* =========================================================
+   4. 주사율 측정
+   ========================================================= */
+function measureRefresh(){
+  return new Promise(res=>{
+    const ts=[]; let n=0;
+    function tick(t){ ts.push(t); if(++n<24) requestAnimationFrame(tick);
+      else{
+        const d=[]; for(let i=1;i<ts.length;i++) d.push(ts[i]-ts[i-1]);
+        d.sort((a,b)=>a-b);
+        res(d[Math.floor(d.length/2)] || 16.667);
+      }}
+    requestAnimationFrame(tick);
+  });
+}
+
+/* =========================================================
+   5. 장면 그리기
+   ========================================================= */
+function makeBuiltinScene(spec){
+  return {
+    name: spec.name,
+    draw(c,w,h){
+      const g=c.createLinearGradient(0,0,0,h*0.65);
+      g.addColorStop(0,spec.sky[0]); g.addColorStop(1,spec.sky[1]);
+      c.fillStyle=g; c.fillRect(0,0,w,h*0.65);
+      c.fillStyle=spec.ground; c.fillRect(0,h*0.62,w,h*0.38);
+      for(const e of spec.els){
+        c.fillStyle=e.c; c.strokeStyle=e.c; c.lineWidth=Math.max(2,w*0.004);
+        if(e.t==="rect") c.fillRect(e.x*w,e.y*h,e.w*w,e.h*h);
+        else if(e.t==="circ"){
+          c.beginPath(); c.arc(e.x*w,e.y*h,e.r*Math.min(w,h),0,Math.PI*2);
+          e.stroke ? c.stroke() : c.fill();
+        }
+      }
+    }
+  };
+}
+function makeImageScene(name,img){
+  return {name, draw(c,w,h){ c.drawImage(img,0,0,w,h); }};
+}
+function makeGlyphObject(o){
+  return {
+    answers:o.answers,
+    draw(c,x,y,size){
+      c.textAlign="center"; c.textBaseline="middle";
+      c.font = size+'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+      c.fillText(o.glyph,x,y);
+    }
+  };
+}
+function makeImageObject(answers,img){
+  return {
+    answers,
+    draw(c,x,y,size){
+      const r = img.width/img.height;
+      const w = r>=1 ? size : size*r, h = r>=1 ? size/r : size;
+      c.drawImage(img, x-w/2, y-h/2, w, h);
+    }
+  };
+}
+
+/* =========================================================
+   6. 시행 목록 구성
+   ========================================================= */
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+function derange(n){
+  let p;
+  do{ p=shuffle([...Array(n).keys()]); }while(p.some((v,i)=>v===i));
+  return p;
+}
+
+function buildTrials(nMain, nPractice){
+  const total = Math.min(nMain + nPractice, S.scenes.length);
+  const pool = shuffle([...Array(S.scenes.length).keys()]).slice(0,total);
+
+  const half = Math.floor(nMain/2);
+  const list = [];
+
+  for(let i=0;i<nPractice;i++){
+    const k = pool[i];
+    list.push({practice:true, sceneIdx:k, objIdx:k, consistent:true});
+  }
+  const main = pool.slice(nPractice);
+  const consIdx = main.slice(0, half);
+  const incoIdx = main.slice(half, half*2);
+
+  consIdx.forEach(k => list.push({practice:false, sceneIdx:k, objIdx:k, consistent:true}));
+  const d = derange(incoIdx.length);
+  incoIdx.forEach((k,i) => list.push({practice:false, sceneIdx:k, objIdx:incoIdx[d[i]], consistent:false}));
+
+  const mainTrials = list.filter(t=>!t.practice);
+  const sides = shuffle(mainTrials.map((_,i)=> i%2===0 ? "L":"R"));
+  mainTrials.forEach((t,i)=> t.side = sides[i]);
+  list.filter(t=>t.practice).forEach(t=> t.side = Math.random()<.5?"L":"R");
+
+  if(S.exp.cue==="pre"){
+    const nInvalid = Math.round(mainTrials.length/3);
+    const flags = shuffle(mainTrials.map((_,i)=> i<nInvalid ? false : true));
+    mainTrials.forEach((t,i)=> t.cueValid = flags[i]);
+    list.filter(t=>t.practice).forEach(t=> t.cueValid = true);
+    list.forEach(t=> t.cueSide = t.cueValid ? t.side : (t.side==="L"?"R":"L"));
+  }
+  if(S.exp.cue==="popout"){
+    const flags = shuffle(mainTrials.map((_,i)=> i%2===0));
+    mainTrials.forEach((t,i)=> t.popout = flags[i]);
+    list.filter(t=>t.practice).forEach(t=> t.popout = true);
+  }
+
+  const prac = list.filter(t=>t.practice);
+  return prac.concat(shuffle(list.filter(t=>!t.practice)));
+}
+
+/* =========================================================
+   7. 화면 단계별 그리기
+   ========================================================= */
+const GRAY = "#808080";
+function clearStage(){ ctx.filter="none"; ctx.fillStyle=GRAY; ctx.fillRect(0,0,W,H); }
+
+function drawFixation(){
+  clearStage();
+  ctx.strokeStyle="#111"; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(W/2-11,H/2); ctx.lineTo(W/2+11,H/2);
+  ctx.moveTo(W/2,H/2-11); ctx.lineTo(W/2,H/2+11); ctx.stroke();
+}
+function drawBlank(){ clearStage(); }
+
+function objXY(side){ return [ side==="L" ? W*0.31 : W*0.69, H*0.60 ]; }
+
+function drawCue(trial){
+  clearStage();
+  const [x,y] = objXY(trial.cueSide);
+  ctx.strokeStyle="#111"; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(x,y,26,0,Math.PI*2); ctx.stroke();
+}
+
+function drawScene(trial){
+  ctx.filter = S.exp.gray ? "grayscale(1)" : "none";
+  S.scenes[trial.sceneIdx].draw(ctx,W,H);
+  const [x,y] = objXY(trial.side);
+  const size = Math.round(H*0.20);
+  S.objects[trial.objIdx].draw(ctx,x,y,size);
+  ctx.filter="none";
+  if(S.exp.cue==="popout" && trial.popout){
+    ctx.strokeStyle="#EF4444"; ctx.lineWidth=5;
+    ctx.strokeRect(x-size*0.62, y-size*0.62, size*1.24, size*1.24);
+  }
+}
+
+let maskCanvas = null;
+function buildMask(){
+  const tile = 32, cols = Math.ceil(W/tile), rows = Math.ceil(H/tile);
+  const src = document.createElement("canvas"); src.width=W; src.height=H;
+  src.getContext("2d").drawImage(cv,0,0);
+  if(!maskCanvas){ maskCanvas = document.createElement("canvas"); maskCanvas.width=W; maskCanvas.height=H; }
+  const mc = maskCanvas.getContext("2d");
+  const order = shuffle([...Array(cols*rows).keys()]);
+  for(let i=0;i<cols*rows;i++){
+    const sx=(i%cols)*tile, sy=Math.floor(i/cols)*tile;
+    const j=order[i], dx=(j%cols)*tile, dy=Math.floor(j/cols)*tile;
+    mc.save(); mc.translate(dx+tile/2, dy+tile/2);
+    mc.rotate((Math.floor(Math.random()*4))*Math.PI/2);
+    mc.drawImage(src, sx,sy,tile,tile, -tile/2,-tile/2,tile,tile);
+    mc.restore();
+  }
+}
+function drawMask(){ ctx.filter="none"; ctx.drawImage(maskCanvas,0,0); }
+
+/* =========================================================
+   8. 시행 실행
+   ========================================================= */
+function stagesFor(trial){
+  const fix = +$("fixMs").value, blank = +$("blankMs").value;
+  const scene = +$("sceneMs").value, mask = +$("maskMs").value;
+  const st = [{n:"fixation", ms:fix, d:drawFixation}];
+  if(S.exp.cue==="pre"){
+    st.push({n:"cue", ms:100, d:()=>drawCue(trial)});
+    st.push({n:"blank", ms:Math.max(blank,500), d:drawBlank});
+  } else {
+    st.push({n:"blank", ms:blank, d:drawBlank});
+  }
+  st.push({n:"scene", ms:scene, d:()=>drawScene(trial)});
+  st.push({n:"mask",  ms:mask,  d:()=>{ buildMask(); drawMask(); }});
+  return st;
+}
+
+function runTrial(trial){
+  return new Promise(resolve=>{
+    const st = stagesFor(trial);
+    const actual = {};
+    let i=0, started=false, t0=0;
+    const fd = S.frameDur;
+
+    function loop(t){
+      if(!started){ started=true; t0=t; st[0].d(); }
+      else if(t - t0 >= st[i].ms - fd/2){
+        actual[st[i].n] = +(t - t0).toFixed(1);
+        i++;
+        if(i>=st.length){ clearStage(); resolve(actual); return; }
+        t0 = t; st[i].d();
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  });
+}
+
+/* =========================================================
+   9. 세션 흐름
+   ========================================================= */
+const overlay=$("overlay"), overlayBox=$("overlayBox"), answerbar=$("answerbar"), answer=$("answer");
+
+function showOverlay(html){
+  overlayBox.innerHTML = html;
+  overlay.style.display = "flex";
+}
+function hideOverlay(){ overlay.style.display="none"; }
+
+function waitKey(){
+  return new Promise(res=>{
+    function h(e){ if(e.key==="Escape") return; window.removeEventListener("keydown",h); res(); }
+    window.addEventListener("keydown",h);
+  });
+}
+function waitAnswer(){
+  return new Promise(res=>{
+    answerbar.style.display="flex"; answer.value=""; answer.focus();
+    const t0 = performance.now();
+    function h(e){
+      if(e.key!=="Enter") return;
+      const v = answer.value.trim();
+      if(!v) return;
+      answer.removeEventListener("keydown",h);
+      answerbar.style.display="none";
+      res({text:v, rt:Math.round(performance.now()-t0)});
+    }
+    answer.addEventListener("keydown",h);
+  });
+}
+
+function norm(s){ return s.toLowerCase().replace(/[\s.,·・'"~!?()\-]/g,""); }
+function autoScore(resp, answers){
+  const r = norm(resp);
+  if(!r) return 0;
+  return answers.some(a=>{ const n=norm(a); return r===n || r.includes(n) || n.includes(r); }) ? 1 : 0;
+}
+
+async function runSession(){
+  $("setup").style.display="none";
+  $("run").style.display="flex";
+  S.data=[]; S.idx=0;
+
+  const nPrac = S.trials.filter(t=>t.practice).length;
+
+  showOverlay(`
+    <h3>${S.exp.name}</h3>
+    <p>화면 중앙의 십자 표시(+)를 지속해서 응시하세요. 장면 사진이 <b>매우 짧게</b> 제시된 후 지직거리는 마스크 화면으로 가려집니다.</p>
+    <p>사진 속에 존재했던 <b>물체 하나의 이름</b>을 최대한 구체적으로 입력하세요. 정확도 위주로 평가됩니다.</p>
+    ${S.exp.cue==="pre" ? "<p>사진이 나오기 전 작은 원(단서)이 잠시 나타납니다. 물체는 주로 그 위치 근처에 위치합니다.</p>" : ""}
+    ${nPrac ? `<p>본시행 전 연습 시행 ${nPrac}회를 진행합니다.</p>` : ""}
+    <p style="margin-top:24px"><span class="keycap">아무 키</span>를 눌러 시작하세요</p>`);
+  await waitKey(); hideOverlay();
+
+  for(let i=0;i<S.trials.length;i++){
+    const trial = S.trials[i];
+    const label = trial.practice ? "연습 시행" : "본 시행";
+    const num = trial.practice ? i+1 : i+1-nPrac;
+    const totalMain = S.trials.length - nPrac;
+    $("progress").textContent = trial.practice ? `연습 ${num} / ${nPrac}` : `시행 ${num} / ${totalMain}`;
+
+    showOverlay(`<p style="font-weight:600; font-size:18px; color:#FFF;">${label} ${num}</p><p style="margin-top:16px"><span class="keycap">아무 키</span>를 누르면 자극이 제시됩니다</p>`);
+    await waitKey(); hideOverlay();
+    clearStage();
+
+    const actual = await runTrial(trial);
+    const resp = await waitAnswer();
+
+    if(!trial.practice){
+      S.data.push({
+        trial: num,
+        scene: S.scenes[trial.sceneIdx].name,
+        object: S.objects[trial.objIdx].answers[0],
+        condition: trial.consistent ? "일치" : "불일치",
+        side: trial.side,
+        cue: S.exp.cue==="pre" ? (trial.cueValid?"유효":"무효")
+           : S.exp.cue==="popout" ? (trial.popout?"단서있음":"단서없음") : "",
+        response: resp.text,
+        rt: resp.rt,
+        sceneMs: actual.scene,
+        maskMs: actual.mask,
+        score: autoScore(resp.text, S.objects[trial.objIdx].answers)
+      });
+    }
+
+    if(trial.practice && i === nPrac-1){
+      showOverlay(`<h3>연습 완료</h3><p>이어서 본 시행을 진행합니다.</p>
+        <p style="margin-top:24px"><span class="keycap">아무 키</span>를 눌러 계속하세요</p>`);
+      await waitKey(); hideOverlay();
+    }
+  }
+
+  $("run").style.display="none";
+  showResults();
+}
+
+/* =========================================================
+   10. 결과 화면
+   ========================================================= */
+function showResults(){
+  $("results").style.display="block";
+  const d = S.data;
+  const cons = d.filter(r=>r.condition==="일치");
+  const inco = d.filter(r=>r.condition==="불일치");
+  const pct = a => a.length ? Math.round(a.reduce((s,r)=>s+r.score,0)/a.length*1000)/10 : 0;
+
+  $("resMeta").textContent =
+    `${S.exp.name} · 참가자: ${$("pid").value} · 측정 일시: ${new Date().toLocaleString("ko-KR")}`;
+
+  const meanScene = d.length ? (d.reduce((s,r)=>s+r.sceneMs,0)/d.length).toFixed(1) : "—";
+  $("resSummary").innerHTML = `
+    <div class="stat"><div class="k">일치 조건 정확도</div><div class="v">${pct(cons)}<small style="font-size:15px">%</small></div></div>
+    <div class="stat"><div class="k">불일치 조건 정확도</div><div class="v">${pct(inco)}<small style="font-size:15px">%</small></div></div>
+    <div class="stat"><div class="k">맥락 촉진 효과 (차이)</div><div class="v" style="color:var(--primary);">${(pct(cons)-pct(inco)).toFixed(1)}<small style="font-size:15px">%p</small></div></div>
+    <div class="stat"><div class="k">평균 자극 제시 시간</div><div class="v">${meanScene}<small style="font-size:15px">ms</small></div></div>
+    <div class="stat" style="grid-column:span 2"><div class="k">원 논문 레퍼런스 기준치</div>
+      <div style="font-size:13.5px; margin-top:6px; color:var(--text-main); font-weight:500;">${S.exp.paper}</div></div>`;
+
+  const cueCol = S.exp.cue!=="none";
+  let html = `<tr><th>#</th><th>장면</th><th>정답 물체</th><th>조건</th>${cueCol?"<th>단서</th>":""}
+    <th>위치</th><th>참가자 응답</th><th>제시 ms</th><th>수동 채점</th></tr>`;
+  d.forEach((r,i)=>{
+    html += `<tr>
+      <td class="n">${r.trial}</td><td>${r.scene}</td><td>${r.object}</td>
+      <td><span style="font-weight:600; color:${r.condition==='일치'?'var(--primary)':'var(--text-main)'}">${r.condition}</span></td>${cueCol?`<td>${r.cue}</td>`:""}
+      <td class="n">${r.side}</td>
+      <td><b>${r.response.replace(/</g,"&lt;")}</b></td>
+      <td class="n">${r.sceneMs}</td>
+      <td><div class="score">
+        <button data-i="${i}" data-v="1" class="${r.score?"on-o":""}">정답</button>
+        <button data-i="${i}" data-v="0" class="${r.score?"":"on-x"}">오답</button>
+      </div></td></tr>`;
+  });
+  $("trialTable").innerHTML = html;
+
+  $("trialTable").onclick = e=>{
+    const b = e.target.closest("button[data-i]"); if(!b) return;
+    S.data[+b.dataset.i].score = +b.dataset.v;
+    showResults();
+  };
+}
+
+function toCSV(rows, cols){
+  const esc = v => `"${String(v).replace(/"/g,'""')}"`;
+  return "\uFEFF" + [cols.join(",")].concat(
+    rows.map(r=>cols.map(c=>esc(r[c]??"")).join(","))
+  ).join("\n");
+}
+function download(name, text){
+  const a=document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text],{type:"text/csv;charset=utf-8"}));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+
+$("csvFull").onclick = ()=>{
+  const rows = S.data.map(r=>({...r, participant:$("pid").value, experiment:S.exp.id}));
+  download(`scene-context_${S.exp.id}_${$("pid").value}.csv`,
+    toCSV(rows,["participant","experiment","trial","scene","object","condition","cue","side","response","rt","sceneMs","maskMs","score"]));
+};
+$("csvBlind").onclick = ()=>{
+  const rows = S.data.map(r=>({
+    participant:$("pid").value, trial:r.trial, 정답물체:r.object, 참가자응답:r.response, 평정:""
+  }));
+  download(`평정용_${S.exp.id}_${$("pid").value}.csv`,
+    toCSV(rows,["participant","trial","정답물체","참가자응답","평정"]));
+};
+$("again").onclick = ()=>{ $("results").style.display="none"; $("setup").style.display="block"; };
+
+/* =========================================================
+   11. 설정 화면 구성
+   ========================================================= */
+function renderExperiments(){
+  $("exps").innerHTML = EXPERIMENTS.map((e,i)=>`
+    <label class="exp ${i===0?"on":""}" data-id="${e.id}">
+      <input type="radio" name="exp" value="${e.id}" ${i===0?"checked":""}>
+      <div><b>${e.name}</b><span>${e.desc}</span></div>
+    </label>`).join("");
+  $("exps").onchange = e=>{
+    S.exp = EXPERIMENTS.find(x=>x.id===e.target.value);
+    document.querySelectorAll(".exp").forEach(el=>el.classList.toggle("on", el.dataset.id===S.exp.id));
+    renderStages();
+  };
+}
+
+function renderStages(){
+  const fix=+$("fixMs").value, blank=+$("blankMs").value,
+        scene=+$("sceneMs").value, mask=+$("maskMs").value;
+  const fr = ms => Math.max(1,Math.round(ms/S.frameDur));
+  const line = (n,ms,key)=>`<div class="stage-row ${key?"key":""}">
+      <span>${n}</span><span>${ms} ms · ${fr(ms)}프레임 → 실제 ${(fr(ms)*S.frameDur).toFixed(1)} ms</span></div>`;
+
+  let out = `<div class="stage-row"><span>시작 신호</span><span>키 입력시 진행</span></div>`;
+  out += line("응시점 (+)", fix);
+  if(S.exp.cue==="pre"){
+    out += line("사전 단서", 100);
+    out += line("공백", Math.max(blank,500));
+  } else out += line("공백", blank);
+  out += line("장면 제시", scene, true);
+  out += line("마스크", mask);
+  out += `<div class="stage-row"><span>응답</span><span>제한 없음 (정확도 채점)</span></div>`;
+  $("stageList").innerHTML = out;
+  $("startNote").textContent = S.exp.paper;
+}
+["fixMs","blankMs","sceneMs","maskMs"].forEach(id=> $(id).oninput = renderStages);
+
+/* ---- 커스텀 자극 ---- */
+let customScenes=null, customObjects=null;
+$("stimSrc").onchange = e=>{
+  $("customBox").style.display = e.target.value==="custom" ? "block":"none";
+};
+function loadImages(files){
+  return Promise.all([...files].sort((a,b)=>a.name.localeCompare(b.name,"ko")).map(f=>
+    new Promise(res=>{
+      const img=new Image();
+      img.onload=()=>res({name:f.name.replace(/\.[^.]+$/,""), img});
+      img.src=URL.createObjectURL(f);
+    })));
+}
+async function refreshCustom(){
+  const bg=$("bgFiles").files, ob=$("objFiles").files;
+  if(!bg.length || !ob.length) return;
+  const B = await loadImages(bg), O = await loadImages(ob);
+  const n = Math.min(B.length, O.length);
+  customScenes = B.slice(0,n).map(x=>makeImageScene(x.name,x.img));
+  customObjects = O.slice(0,n).map(x=>makeImageObject(x.name.split(",").map(s=>s.trim()), x.img));
+  $("customStatus").innerHTML = n<4
+    ? `이미지 짝이 ${n}개입니다. 최소 4개 이상 업로드해야 합니다.`
+    : `<span style="color:var(--accent)">${n}개 자극 짝이 준비되었습니다. ${B.length!==O.length?"(개수가 달라 최소 수량에 맞춤)":""}</span>`;
+  $("nTrials").max = Math.min(12, n);
+}
+$("bgFiles").onchange = refreshCustom;
+$("objFiles").onchange = refreshCustom;
+
+/* ---- 시작 ---- */
+$("start").onclick = ()=>{
+  const useCustom = $("stimSrc").value==="custom";
+  if(useCustom && (!customScenes || customScenes.length<4)){
+    $("customStatus").textContent = "배경과 물체 이미지를 각각 4개 이상 업로드하세요.";
+    return;
+  }
+  S.scenes  = useCustom ? customScenes  : SCENES.map(makeBuiltinScene);
+  S.objects = useCustom ? customObjects : OBJECTS.map(makeGlyphObject);
+
+  let nMain = +$("nTrials").value, nPrac = +$("nPractice").value;
+  if(nMain % 2) nMain--;
+  const cap = S.scenes.length - nPrac;
+  if(nMain > cap) nMain = cap - (cap%2);
+
+  S.trials = buildTrials(nMain, nPrac);
+  runSession();
+};
+
+/* ---- 부팅 ---- */
+(async function(){
+  renderExperiments();
+  S.frameDur = await measureRefresh();
+  $("hz").textContent = (1000/S.frameDur).toFixed(0);
+  $("fdur").textContent = S.frameDur.toFixed(2);
+  renderStages();
+  clearStage();
+})();
+
+window.addEventListener("keydown", e=>{
+  if(e.key==="Escape" && $("run").style.display==="flex"){
+    if(confirm("실험을 중단하고 현재까지의 결과를 확인할까요?")){
+      $("run").style.display="none";
+      S.data.length ? showResults() : ($("setup").style.display="block");
+    }
+  }
+});
+</script>
+</body>
+</html>
