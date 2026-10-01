@@ -1,0 +1,296 @@
+"use client";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { api, errMsg, toast } from "@/lib/client";
+import { supabaseBrowser } from "@/lib/supabase/browser";
+import type { Field } from "@/lib/types";
+import { FieldTag } from "./bits";
+
+type Theme = "light" | "dark" | "system";
+
+function applyTheme(t: Theme) {
+  const r = document.documentElement;
+  if (t === "system") r.removeAttribute("data-theme");
+  else r.setAttribute("data-theme", t);
+  try {
+    localStorage.setItem("strata-theme", t);
+  } catch {}
+}
+
+export function SettingsView(props: {
+  name: string;
+  email: string;
+  apiKeyLast4: string | null;
+  usage: { used: number; limit: number };
+  fields: Field[];
+  fieldCounts: Record<string, number>;
+  paperIds: string[];
+}) {
+  const router = useRouter();
+  const [theme, setTheme] = useState<Theme>("system");
+  const [key, setKey] = useState("");
+  const [limit, setLimit] = useState(String(props.usage.limit));
+  const [editLimit, setEditLimit] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [newField, setNewField] = useState({ name: "", description: "" });
+  const [reclass, setReclass] = useState<{ done: number; total: number } | null>(null);
+
+  useEffect(() => {
+    try {
+      const t = localStorage.getItem("strata-theme");
+      if (t === "light" || t === "dark") setTheme(t);
+    } catch {}
+  }, []);
+
+  const call = async (fn: () => Promise<unknown>, done?: string) => {
+    try {
+      await fn();
+      if (done) toast(done);
+      router.refresh();
+      return true;
+    } catch (e) {
+      toast(errMsg(e));
+      return false;
+    }
+  };
+
+  const saveKey = (e: React.FormEvent) => {
+    e.preventDefault();
+    call(() => api("/api/settings", { method: "PUT", body: { apiKey: key } }), "API 키를 저장했습니다").then((ok) => ok && setKey(""));
+  };
+  const test = async () => {
+    setTesting(true);
+    await call(() => api("/api/settings/test", { body: {} }), "연결됐습니다. 이 키로 요약할 수 있습니다");
+    setTesting(false);
+  };
+  const runReclassify = async () => {
+    const ids = props.paperIds;
+    setReclass({ done: 0, total: ids.length });
+    let failed = 0;
+    for (let i = 0; i < ids.length; i++) {
+      try {
+        await api(`/api/papers/${ids[i]}/classify`, { body: {} });
+      } catch (e) {
+        failed++;
+        if (failed === 1) toast(errMsg(e));
+        if (errMsg(e).includes("한도") || errMsg(e).includes("API 키")) break;
+      }
+      setReclass({ done: i + 1, total: ids.length });
+    }
+    toast(failed ? `다시 분류를 마쳤습니다 (실패 ${failed}편)` : "다시 분류를 마쳤습니다");
+    setReclass(null);
+    router.refresh();
+  };
+  const visible = props.fields;
+
+  return (
+    <div className="set">
+      <div className="phead">
+        <h1>설정</h1>
+      </div>
+
+      <section>
+        <h2>계정</h2>
+        <p className="sub">내 프로젝트와 서재는 나와 초대한 멤버만 볼 수 있습니다.</p>
+        <div className="line">
+          <span className="av">{(props.name || "나").slice(0, 1)}</span>
+          <span style={{ flex: 1 }}>
+            {props.name} <span className="meta">· {props.email}</span>
+          </span>
+          <button
+            className="btn"
+            onClick={async () => {
+              await supabaseBrowser().auth.signOut();
+              router.push("/login");
+              router.refresh();
+            }}
+          >
+            로그아웃
+          </button>
+        </div>
+      </section>
+
+      <section>
+        <h2>이번 달 AI 사용량</h2>
+        <div className="line" style={{ justifyContent: "space-between" }}>
+          <span>
+            <b style={{ fontFamily: "var(--f-mono)", fontSize: 22 }}>${props.usage.used.toFixed(2)}</b> <span className="meta">한국 시간 기준 이번 달 1일부터</span>
+          </span>
+          {editLimit ? (
+            <form
+              className="line"
+              onSubmit={(e) => {
+                e.preventDefault();
+                call(() => api("/api/settings", { method: "PUT", body: { monthlyLimit: Number(limit) } }), "한도를 바꿨습니다").then((ok) => ok && setEditLimit(false));
+              }}
+            >
+              <span className="meta">월 한도 $</span>
+              <input className="field-in" inputMode="decimal" value={limit} onChange={(e) => setLimit(e.target.value)} style={{ width: 80 }} aria-label="월 한도 (달러)" />
+              <button className="btn sm">저장</button>
+            </form>
+          ) : (
+            <span className="meta">
+              월 한도 ${props.usage.limit.toFixed(2)}{" "}
+              <button className="linkbtn" onClick={() => setEditLimit(true)}>
+                바꾸기
+              </button>
+            </span>
+          )}
+        </div>
+      </section>
+
+      <section>
+        <h2>화면</h2>
+        <p className="sub">고른 테마는 이 브라우저에 기억됩니다.</p>
+        <span className="seg">
+          {(
+            [
+              ["light", "주간"],
+              ["dark", "야간"],
+              ["system", "시스템 따라가기"],
+            ] as [Theme, string][]
+          ).map(([k, v]) => (
+            <button
+              key={k}
+              type="button"
+              aria-pressed={theme === k}
+              onClick={() => {
+                setTheme(k);
+                applyTheme(k);
+              }}
+            >
+              {v}
+            </button>
+          ))}
+        </span>
+      </section>
+
+      <section>
+        <h2>요약 엔진 · Anthropic API 키</h2>
+        <p className="sub">
+          검색어 확장, 초록 요약, 분야 분류에 Claude Sonnet 5.5를 씁니다. 사용한 만큼 내 Anthropic 계정에 청구됩니다(논문 100편 요약에 약 $1). 논문 검색 자체는 키가 없어도 됩니다.
+        </p>
+        <form className="line" onSubmit={saveKey}>
+          <input
+            type="password"
+            className="field-in"
+            style={{ flex: 1 }}
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            placeholder={props.apiKeyLast4 ? `등록된 키 …${props.apiKeyLast4} (바꾸려면 새 키 입력)` : "sk-ant-api03-…"}
+            aria-label="Anthropic API 키"
+            autoComplete="off"
+          />
+          <button className="btn primary" disabled={!key.trim()}>
+            저장
+          </button>
+          {props.apiKeyLast4 && (
+            <button type="button" className="btn" onClick={test} disabled={testing}>
+              {testing ? "확인 중…" : "연결 테스트"}
+            </button>
+          )}
+        </form>
+        <p className="hint">
+          키는 암호화해서 저장하고 화면에는 끝 4자리만 보여줍니다. 다른 멤버는 볼 수 없습니다. 개인 Claude 구독(Pro·Max)은 이 서버 앱에 연결할 수 없습니다.
+          {props.apiKeyLast4 && (
+            <>
+              {" "}
+              <button className="linkbtn" onClick={() => call(() => api("/api/settings", { method: "PUT", body: { apiKey: null } }), "키를 지웠습니다")}>
+                키 지우기
+              </button>
+            </>
+          )}
+        </p>
+      </section>
+
+      <section>
+        <h2>분야 관리</h2>
+        <p className="sub">연구실 전체가 함께 쓰는 목록입니다. Claude가 분류할 때 이 목록과 설명을 보니, 설명을 구체적으로 쓸수록 정확해집니다.</p>
+        {visible.map((f, i) => (
+          <FieldRow key={f.id} f={f} count={props.fieldCounts[f.id] ?? 0} first={i === 0} prev={visible[i - 1]} onChange={() => router.refresh()} />
+        ))}
+        <form
+          className="frow"
+          onSubmit={(e) => {
+            e.preventDefault();
+            call(() => api("/api/fields", { body: newField }), `‘${newField.name}’ 분야를 추가했습니다`).then((ok) => ok && setNewField({ name: "", description: "" }));
+          }}
+        >
+          <input className="field-in" value={newField.name} onChange={(e) => setNewField({ ...newField, name: e.target.value })} placeholder="새 분야 이름" />
+          <input className="field-in" value={newField.description} onChange={(e) => setNewField({ ...newField, description: e.target.value })} placeholder="설명 (분류 기준)" />
+          <button className="btn" disabled={!newField.name.trim()}>
+            + 분야 추가
+          </button>
+        </form>
+        <div className="line" style={{ marginTop: 12 }}>
+          <button className="btn" onClick={runReclassify} disabled={!!reclass || props.paperIds.length === 0}>
+            {reclass ? `다시 분류하는 중… ${reclass.done}/${reclass.total}` : `기존 논문 다시 분류 (${props.paperIds.length}편)`}
+          </button>
+          <span className="hint" style={{ margin: 0 }}>
+            자동으로 붙은 분야만 다시 판단합니다. 직접 지정한 분야는 그대로 둡니다.
+          </span>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function FieldRow({ f, count, first, prev, onChange }: { f: Field; count: number; first: boolean; prev?: Field; onChange: () => void }) {
+  const [name, setName] = useState(f.name);
+  const [desc, setDesc] = useState(f.description);
+  const [confirm, setConfirm] = useState(false);
+  const patch = async (body: Partial<Field>) => {
+    try {
+      await api(`/api/fields/${f.id}`, { method: "PATCH", body });
+      onChange();
+    } catch (e) {
+      toast(errMsg(e));
+    }
+  };
+  return (
+    <div className="frow" style={{ gridTemplateColumns: "150px minmax(0,1fr) auto", opacity: f.hidden ? 0.55 : 1 }}>
+      <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <FieldTag field={{ name: f.name, color: f.color }} />
+        <input className="field-in" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name !== f.name && patch({ name: name.trim() })} aria-label="분야 이름" style={{ padding: "4px 8px" }} />
+      </span>
+      <textarea className="field-in" style={{ minHeight: 44 }} value={desc} onChange={(e) => setDesc(e.target.value)} onBlur={() => desc !== f.description && patch({ description: desc })} aria-label={`${f.name} 설명`} />
+      <span style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+        <span className="c">{count}편</span>
+        <span style={{ display: "flex", gap: 4 }}>
+          <select className="cardsel" value={f.color % 12} onChange={(e) => patch({ color: Number(e.target.value) })} aria-label="색">
+            {Array.from({ length: 12 }, (_, i) => (
+              <option key={i} value={i}>
+                색 {i + 1}
+              </option>
+            ))}
+          </select>
+          <button className="btn sm" disabled={first} onClick={() => prev && patch({ position: prev.position }).then(() => api(`/api/fields/${prev.id}`, { method: "PATCH", body: { position: f.position } }).then(onChange))} title="위로">
+            ↑
+          </button>
+          <button className="btn sm" onClick={() => patch({ hidden: !f.hidden })}>
+            {f.hidden ? "보이기" : "숨기기"}
+          </button>
+          {confirm ? (
+            <button
+              className="btn sm danger"
+              onClick={async () => {
+                try {
+                  await api(`/api/fields/${f.id}`, { method: "DELETE" });
+                  onChange();
+                } catch (e) {
+                  toast(errMsg(e));
+                }
+              }}
+            >
+              {count ? `${count}편에서 빼고 삭제` : "삭제"}
+            </button>
+          ) : (
+            <button className="btn sm" onClick={() => setConfirm(true)}>
+              삭제
+            </button>
+          )}
+        </span>
+      </span>
+    </div>
+  );
+}

@@ -37,7 +37,9 @@ PDF는 저장하지 않고 서지 정보, 원문 초록, 요약, 메모만 보�
 ### 검색
 - 출처
   - 해외: OpenAlex · Semantic Scholar · ERIC · (선택) PubMed
-  - 국내: KCI Open API(학술지) · 국회도서관 Open API(학위논문). RISS는 공개 API 범위 확인 필요
+  - 국내: Crossref · OpenAlex(DOI가 등록된 국내 학술지) + KCI · RISS · DBpia · Google 학술검색으로 가는 링크 + DOI 붙여넣기 / 직접 입력
+  - KCI Open API는 담당자 승인과 고정 서버 IP 등록이 필요해 1단계에서는 쓰지 않는다. 국내 논문이 너무 안 잡히면 고정 IP 중계 서버를 두고 붙인다
+  - 학위논문: 국회도서관 Open API (3단계, 키 신청 필요)
 - Claude가 프로젝트 연구 질문과 분야를 보고 **한국어·영어 검색어**로 넓힘 (칩으로 수정 가능)
 - 검색어 × 출처를 병렬 수집 → DOI·제목 기준 중복 제거 → 순위 결합
 - 인용 추적: 이 논문을 인용한 논문 / 참고문헌 / 비슷한 논문
@@ -101,15 +103,16 @@ AI를 쓰는 곳은 검색어 확장, 고른 논문 요약, 공백 지도 분류
 
 ## 5. 구현 단계
 
-1. **1단계**: 로그인, 프로젝트·공유, 검색(OpenAlex · Semantic Scholar · ERIC · KCI), 검색 기록·저장, 요약·보관, 비교표, 분야 관리, 이번 달 사용량
+1. **1단계 (구현됨)**: 로그인(가입 이메일 제한), 프로젝트·공유, 검색(OpenAlex · Semantic Scholar · ERIC · Crossref), 국내 사이트 링크, DOI·직접 추가, 인용 추적, 검색 기록·저장, 요약·재사용·보관, 영향력 지표, 비교표, 서재, 분야 관리, 이번 달 사용량
 2. **2단계**: 대시보드, 관계도, 연구 동향, 핵심 문헌 후보, 저장한 검색 주간 알림, 영향력 지표 전체
 3. **3단계**: 연구 공백 지도(저장 포함), 학위논문(국회도서관), 내보내기(BibTeX · RIS · Markdown · 백업)
 
 ## 6. 준비할 것 · 확인할 것
 
 - [ ] Supabase · Vercel 계정 (무료 요금제)
-- [ ] KCI Open API 키 신청
-- [ ] 국회도서관 Open API 키 신청
+- [ ] (나중에, 필요하면) KCI Open API 키 신청 — 고정 IP 중계 서버 필요
+- [ ] (3단계) 국회도서관 Open API 키 신청
 - [ ] (선택) Semantic Scholar API 키, OpenAlex 이메일/키
 - [ ] SCImago 학술지 순위 목록(연 1회 내려받기)
-- [ ] KCI · 국회도서관 API 실제 응답 형식 확인 (키 발급 후)
+- [ ] 첫 배포 후 각 출처(OpenAlex · Semantic Scholar · ERIC · Crossref) 실제 검색 확인
+- [ ] 설치·배포 순서: [`../README.md`](../README.md)
