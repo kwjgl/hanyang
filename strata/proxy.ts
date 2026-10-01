@@ -9,9 +9,29 @@ const PUBLIC = ["/login", "/auth", "/setup", ...(process.env.STRATA_PREVIEW === 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   if (process.env.STRATA_PREVIEW === "1" && path.startsWith("/preview")) return NextResponse.next();
+  // Supabase의 Redirect URLs 설정이 빠지면 로그인 링크가 /?code=... 로 돌아온다. 받아서 로그인 처리로 넘긴다.
+  const code = request.nextUrl.searchParams.get("code");
+  if (code && path !== "/auth/callback") {
+    const url = new URL("/auth/callback", request.url);
+    url.searchParams.set("code", code);
+    url.searchParams.set("next", path === "/login" ? "/" : path);
+    return NextResponse.redirect(url);
+  }
   if (!isConfigured()) {
     return path.startsWith("/setup") ? NextResponse.next() : NextResponse.redirect(new URL("/setup", request.url));
   }
+  try {
+    return await withSession(request, path);
+  } catch (e) {
+    // Supabase에 연결하지 못하면 페이지마다 서버 오류를 내지 않고 설정 점검 화면으로 보낸다
+    console.error("proxy:", e);
+    if (path.startsWith("/setup")) return NextResponse.next();
+    if (path.startsWith("/api/")) return NextResponse.json({ error: "Supabase에 연결하지 못했습니다" }, { status: 503 });
+    return NextResponse.redirect(new URL("/setup", request.url));
+  }
+}
+
+async function withSession(request: NextRequest, path: string) {
   let response = NextResponse.next({ request });
   const supabase = createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
     cookies: {

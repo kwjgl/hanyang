@@ -110,6 +110,8 @@ export function SettingsView(props: {
         </div>
       </section>
 
+      <PasswordSection />
+
       <section>
         <h2>이번 달 AI 사용량</h2>
         <div className="line" style={{ justifyContent: "space-between" }}>
@@ -292,5 +294,35 @@ function FieldRow({ f, count, first, prev, onChange }: { f: Field; count: number
         </span>
       </span>
     </div>
+  );
+}
+
+function PasswordSection() {
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [busy, setBusy] = useState(false);
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pw.length < 8) return toast("비밀번호는 8자 이상으로 정해 주세요");
+    if (pw !== pw2) return toast("두 비밀번호가 다릅니다");
+    setBusy(true);
+    const { error } = await supabaseBrowser().auth.updateUser({ password: pw });
+    setBusy(false);
+    if (error) return toast(/different from the old/i.test(error.message) ? "지금 비밀번호와 다른 비밀번호를 정해 주세요" : "비밀번호를 바꾸지 못했습니다");
+    setPw("");
+    setPw2("");
+    toast("비밀번호를 바꿨습니다");
+  };
+  return (
+    <section>
+      <h2>비밀번호 바꾸기</h2>
+      <form className="line" onSubmit={save}>
+        <input type="password" className="field-in" style={{ flex: 1 }} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="새 비밀번호 (8자 이상)" autoComplete="new-password" aria-label="새 비밀번호" />
+        <input type="password" className="field-in" style={{ flex: 1 }} value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="한 번 더" autoComplete="new-password" aria-label="새 비밀번호 확인" />
+        <button className="btn" disabled={busy || !pw}>
+          바꾸기
+        </button>
+      </form>
+    </section>
   );
 }

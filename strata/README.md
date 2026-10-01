@@ -9,7 +9,7 @@
 
 | 기능 | 내용 |
 |---|---|
-| 로그인 | Google 계정, 이메일 로그인 링크. `ALLOWED_EMAILS`로 연구실 사람만 가입 |
+| 로그인 | 이메일 + 비밀번호. 계정은 관리자가 Supabase에서 만들어 줌. 설정에서 비밀번호 변경 |
 | 프로젝트 | 이름 · 연구 질문 · 분야 · 소주제. 편집 · 삭제 |
 | 공유 | 이메일로 초대(편집 가능 / 보기만). 아직 가입하지 않은 사람은 가입하는 순간 자동으로 멤버가 됨 |
 | 검색 | OpenAlex · Semantic Scholar · ERIC · Crossref(국내 학술지). Claude가 한국어·영어 검색어로 넓힘. 범위(전체/국내/해외), 정렬(관련도·영향력·피인용·최신), 상위 10%·리뷰만 |
@@ -24,57 +24,41 @@
 
 2단계(대시보드 · 관계도 · 연구 동향 · 핵심 문헌 후보 · 주간 알림)와 3단계(연구 공백 지도 · 학위논문 · 내보내기)는 기획서를 참고하세요.
 
-## 설치와 배포
+## 다른 컴퓨터·휴대폰에서 쓰기
 
-처음 한 번, 앱을 운영할 사람(관리자)이 아래를 진행합니다. 30분 정도 걸립니다.
+Strata는 인터넷 주소로 여는 웹 앱이라 설치할 것이 없습니다. 어느 컴퓨터든 브라우저로 앱 주소에 들어가 로그인하면 같은 프로젝트와 서재가 그대로 보입니다.
 
-### 1. Supabase 프로젝트 만들기
+- 앱 주소: Vercel → strata 프로젝트 → 위쪽 **Domains**에 나온 주소 (예: `https://strata-xxxx.vercel.app`). 즐겨찾기해 두세요.
+- 주소를 짧게 바꾸려면 Vercel → **Settings → Domains**에서 `원하는이름.vercel.app`으로 고칠 수 있습니다. 바꾸면 Supabase **Authentication → URL Configuration**의 Site URL도 새 주소로 바꿔 주세요.
 
-1. <https://supabase.com>에서 무료 계정을 만들고 **New project**를 누릅니다. 지역은 Seoul(Northeast Asia)을 고릅니다.
-2. 왼쪽 **SQL Editor**에서 [`supabase/migrations/20261001000000_init.sql`](supabase/migrations/20261001000000_init.sql) 내용을 통째로 붙여넣고 **Run**을 누릅니다.
-3. **Project Settings → API**에서 `Project URL`과 `anon public` 키를 복사해 둡니다.
+## 계정 만들기 (관리자)
 
-### 2. 로그인 설정
+1. Supabase → **Authentication → Users → Add user → Create new user**
+2. 이메일과 처음 비밀번호를 넣고 **Auto Confirm User**를 체크한 뒤 만듭니다.
+3. 그 사람에게 앱 주소·이메일·처음 비밀번호를 알려 줍니다. 처음 로그인한 뒤 **설정 → 비밀번호 바꾸기**에서 바꾸면 됩니다.
+4. 프로젝트 공유는 앱의 **공유** 버튼에서 같은 이메일로 초대합니다. 계정을 나중에 만들어도 초대가 자동으로 연결됩니다.
 
-1. **Authentication → URL Configuration**
-   - Site URL: 배포 주소 (예: `https://strata-lab.vercel.app`). 처음엔 `http://localhost:3000`
-   - Redirect URLs: `http://localhost:3000/auth/callback`, `https://배포주소/auth/callback`
-2. **이메일 링크 로그인**은 기본으로 켜져 있습니다. 무료 요금제의 기본 메일 발송은 시간당 몇 통으로 제한되니, 사람이 많아지면 **Authentication → SMTP**에 학교·Gmail SMTP를 연결하세요.
-3. **Google 로그인** (선택)
-   - Google Cloud Console → API 및 서비스 → 사용자 인증 정보 → **OAuth 클라이언트 ID**(웹 애플리케이션)를 만듭니다.
-   - 승인된 리디렉션 URI에 Supabase의 **Authentication → Providers → Google** 화면에 나오는 Callback URL을 넣습니다.
-   - 받은 클라이언트 ID와 보안 비밀을 Supabase의 Google 설정에 넣고 켭니다.
+외부인이 가입하지 못하게 Supabase → **Authentication → Sign In / Providers**에서 **Allow new users to sign up**을 꺼 두세요.
 
-### 3. 내 컴퓨터에서 실행해 보기
+## 처음 설치 (이미 끝남 · 기록용)
 
-```bash
-cd strata
-npm install
-cp .env.example .env.local   # 값 채우기 (아래 설명)
-npm run dev                  # http://localhost:3000
-```
-
-`.env.local`에 최소한 이 세 가지를 채웁니다.
+1. Supabase 프로젝트를 만들고 SQL Editor에서 [`supabase/migrations/20261001000000_init.sql`](supabase/migrations/20261001000000_init.sql)을 실행합니다.
+2. Vercel에 배포하고 환경 변수 3개를 넣습니다.
 
 | 이름 | 값 |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | 1-3에서 복사한 Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 1-3에서 복사한 anon public 키 |
-| `API_KEY_ENCRYPTION_SECRET` | `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` 결과. **한 번 정하면 바꾸지 마세요** |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL (`https://xxxx.supabase.co`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase Publishable key (`sb_publishable_…`) 또는 anon public 키 |
+| `API_KEY_ENCRYPTION_SECRET` | 32자 이상 무작위 문자열. **한 번 정하면 바꾸지 않습니다** |
 
-연구실 사람만 쓰게 하려면 `ALLOWED_EMAILS=@hanyang.ac.kr,동료@gmail.com`처럼 적습니다.
+3. Supabase **Authentication → URL Configuration**의 Site URL에 앱 주소를 넣습니다.
+4. 설정이 잘못되면 앱이 오류 대신 **설정 점검** 화면(`/setup`)을 띄워 어떤 값이 틀렸는지 알려 줍니다. 값을 고친 뒤에는 Vercel **Deployments → ⋯ → Redeploy**를 눌러야 반영됩니다.
 
-### 4. Vercel에 올리기
+배포는 `kwjgl/strata` 저장소의 main에 올라간 코드로 자동으로 됩니다. Vercel 무료 요금제는 비공개 저장소에서 저장소 주인이 아닌 사람이 올린 커밋을 배포하지 않으므로, 커밋 작성자를 저장소 주인(kwjgl)으로 해야 합니다.
 
-1. 이 저장소를 GitHub에 올린 상태에서 <https://vercel.com>에 GitHub 계정으로 로그인합니다.
-2. **Add New → Project**에서 저장소를 고르고 **Root Directory**를 `strata`로 정합니다.
-3. **Environment Variables**에 `.env.local`과 같은 값을 넣고 **Deploy**를 누릅니다.
-4. 배포 주소를 2-1의 Site URL·Redirect URLs에 추가합니다.
+### 요약용 API 키 (각자)
 
-### 5. 쓰기 시작
-
-1. 로그인 → **설정**에서 각자 [Anthropic API 키](https://console.anthropic.com)를 등록하고 **연결 테스트**를 누릅니다.
-2. 새 프로젝트를 만들고, **공유**에서 동료 이메일을 초대합니다.
+[console.anthropic.com](https://console.anthropic.com)에서 **Billing**으로 충전(최소 $5)하고 **API Keys → Create Key**로 만든 키를 Strata **설정**에 넣고 **연결 테스트**를 누릅니다. Claude 구독(Pro·Max)과 API 요금은 따로입니다. 키가 없어도 검색·보관은 되지만 검색어 확장과 요약은 꺼집니다.
 
 ## 비용
 

@@ -1,3 +1,6 @@
+// 여러 출처를 기다리거나 Claude를 호출하므로 Vercel 기본 제한(10초)보다 길게 둔다
+export const maxDuration = 60;
+
 import { runSearch } from "@/lib/search/run";
 import { body, HttpError, json, route } from "@/lib/server/api";
 import { annotate } from "@/lib/server/membership";

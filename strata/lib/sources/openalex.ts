@@ -84,7 +84,7 @@ export async function searchOpenAlex(
   if (opts.yearFrom || opts.yearTo) filters.push(`publication_year:${opts.yearFrom ?? ""}-${opts.yearTo ?? ""}`);
   if (opts.koreanOnly) filters.push("language:ko");
   const params = withAuth(
-    new URLSearchParams({ search: term, "per-page": String(opts.perPage ?? 50), select: SELECT }),
+    new URLSearchParams({ search: term, "per-page": String(opts.perPage ?? 100), select: SELECT }),
   );
   if (filters.length) params.set("filter", filters.join(","));
   const data = await fetchJson<{ results: OpenAlexWork[] }>("OpenAlex", `${BASE}/works?${params}`);

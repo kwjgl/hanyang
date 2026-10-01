@@ -59,7 +59,7 @@ export function parseCrossrefItem(it: CrossrefItem): Candidate | null {
 }
 
 export async function searchCrossref(term: string, opts: { rows?: number; yearFrom?: number } = {}) {
-  const params = new URLSearchParams({ "query.bibliographic": term, rows: String(opts.rows ?? 40), select: SELECT });
+  const params = new URLSearchParams({ "query.bibliographic": term, rows: String(opts.rows ?? 60), select: SELECT });
   if (opts.yearFrom) params.set("filter", `from-pub-date:${opts.yearFrom}`);
   const data = await fetchJson<{ message?: { items?: CrossrefItem[] } }>("Crossref", `${BASE}/works?${params}${mailto()}`);
   return (data.message?.items ?? []).map(parseCrossrefItem).filter((c): c is Candidate => !!c);
