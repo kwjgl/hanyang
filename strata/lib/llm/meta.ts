@@ -13,7 +13,7 @@ export const PROVIDERS: Record<Provider, { label: string; model: string; keyHint
   gemini: {
     label: "Gemini",
     model: "gemini-flash-latest",
-    keyHint: "AIza…",
+    keyHint: "AIza… 또는 AQ.…",
     keyUrl: "https://aistudio.google.com/apikey",
     note: "무료 사용량이 있습니다(하루 요청 수 제한). 무료 사용분은 Google이 서비스 개선에 쓸 수 있습니다.",
   },
@@ -31,7 +31,8 @@ export const isProvider = (p: unknown): p is Provider => p === "anthropic" || p 
 export function checkKeyFormat(p: Provider, key: string): string | null {
   if (p === "anthropic" && !key.startsWith("sk-ant-")) return "Claude API 키는 sk-ant- 로 시작합니다";
   if (p === "openai" && !key.startsWith("sk-")) return "OpenAI API 키는 sk- 로 시작합니다";
-  if (p === "gemini" && !key.startsWith("AIza")) return "Gemini API 키는 AIza 로 시작합니다";
+  // Google 키는 AIza… 와 새 형식 AQ.… 가 함께 쓰인다. 형식 대신 길이와 공백만 본다
+  if (p === "gemini" && (key.length < 20 || /\s/.test(key))) return "Gemini API 키를 끝까지 정확히 붙여넣어 주세요";
   return null;
 }
 

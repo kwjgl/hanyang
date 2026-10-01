@@ -86,8 +86,10 @@ describe("stored AI settings", () => {
     expect(parsePublic(pub)).toEqual({ provider: "gemini", last4: { anthropic: "1111", gemini: "2222" } });
   });
   it("checks key prefixes per provider", () => {
-    expect(checkKeyFormat("gemini", "AIzaX")).toBeNull();
-    expect(checkKeyFormat("gemini", "sk-x")).not.toBeNull();
+    expect(checkKeyFormat("gemini", "AIzaSyA1234567890abcdefghij")).toBeNull();
+    expect(checkKeyFormat("gemini", "AQ.Ab8RN6Kx1234567890abcdefgh")).toBeNull();
+    expect(checkKeyFormat("gemini", "AQ.short")).not.toBeNull();
+    expect(checkKeyFormat("gemini", "AIza with space 12345678")).not.toBeNull();
     expect(checkKeyFormat("openai", "sk-proj-x")).toBeNull();
     expect(checkKeyFormat("anthropic", "sk-x")).not.toBeNull();
   });
