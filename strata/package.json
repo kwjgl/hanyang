@@ -1,22 +1,17 @@
 {
-  "name": "paper-shelf",
+  "name": "strata",
   "version": "0.1.0",
   "private": true,
-  "description": "초록서재 - 논문 검색·초록 요약·아카이브 (개인용, 로컬 실행)",
+  "description": "Strata - 연구 프로젝트별 논문 검색·초록 요약·보관 (연구실 공유형)",
   "scripts": {
-    "dev": "next dev -p 3939",
+    "dev": "next dev",
     "build": "next build",
-    "start": "next start -p 3939",
+    "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "engines": {
-    "node": ">=20"
-  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
-    "better-sqlite3": "^13.0.3",
-    "cross-spawn": "^7.0.6",
     "fast-xml-parser": "^5.11.2",
     "next": "^16.3.8",
     "react": "^19.3.0",
@@ -24,12 +19,13 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^9.6.0",
-    "@types/cross-spawn": "^6.0.6",
     "@types/node": "^22.20.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "typescript": "^5.9.3",
     "vitest": "^5.0.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
