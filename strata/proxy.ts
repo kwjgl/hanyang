@@ -12,6 +12,18 @@ export async function proxy(request: NextRequest) {
   if (!isConfigured()) {
     return path.startsWith("/setup") ? NextResponse.next() : NextResponse.redirect(new URL("/setup", request.url));
   }
+  try {
+    return await withSession(request, path);
+  } catch (e) {
+    // Supabase에 연결하지 못하면 페이지마다 서버 오류를 내지 않고 설정 점검 화면으로 보낸다
+    console.error("proxy:", e);
+    if (path.startsWith("/setup")) return NextResponse.next();
+    if (path.startsWith("/api/")) return NextResponse.json({ error: "Supabase에 연결하지 못했습니다" }, { status: 503 });
+    return NextResponse.redirect(new URL("/setup", request.url));
+  }
+}
+
+async function withSession(request: NextRequest, path: string) {
   let response = NextResponse.next({ request });
   const supabase = createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
     cookies: {
