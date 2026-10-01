@@ -4,7 +4,7 @@ import { limiter, SourceError } from "@/lib/sources/http";
 import { searchOpenAlex } from "@/lib/sources/openalex";
 import { searchS2 } from "@/lib/sources/semanticscholar";
 import { hasHangul, stripKoreanParticles } from "@/lib/text";
-import type { Candidate, Scope, SourceId } from "@/lib/types";
+import type { Candidate, Scope, SearchPage, SourceId } from "@/lib/types";
 import { mergeAndRank, type RankedList } from "./merge";
 
 export interface SearchInput {
@@ -13,6 +13,8 @@ export interface SearchInput {
   scope: Scope;
   yearFrom?: number;
   yearTo?: number;
+  /** 1부터. 2 이상이면 각 출처의 다음 페이지를 가져온다 */
+  page?: number;
 }
 
 export interface SearchOutput {
@@ -20,6 +22,10 @@ export interface SearchOutput {
   totalRaw: number;
   totalUnique: number;
   perSource: Partial<Record<SourceId, number>>;
+  /** 출처별로 검색어에 맞는 전체 건수 (검색어마다 다르면 가장 큰 값) */
+  available: Partial<Record<SourceId, number>>;
+  /** 다음 페이지가 남아 있는지 */
+  hasMore: boolean;
   warnings: string[];
 }
 
@@ -35,7 +41,7 @@ const lanes: Record<SourceId, ReturnType<typeof limiter>> = {
 interface Task {
   source: SourceId;
   term: string;
-  run: () => Promise<Candidate[]>;
+  run: () => Promise<SearchPage>;
 }
 
 /**
@@ -45,6 +51,7 @@ interface Task {
  */
 export function planTasks(input: SearchInput): Task[] {
   const { terms, sources, scope, yearFrom, yearTo } = input;
+  const page = input.page ?? 1;
   const on = (s: SourceId) => sources.includes(s);
   const tasks: Task[] = [];
   const seen = new Set<string>();
@@ -57,13 +64,13 @@ export function planTasks(input: SearchInput): Task[] {
     if (ko) {
       if (scope === "intl") continue;
       // 한국어 단어로 찾으면 이미 국문 논문만 걸린다. 언어 필터는 영문 초록만 등록된 국내 논문을 놓치게 해서 쓰지 않는다
-      if (on("openalex")) tasks.push({ source: "openalex", term, run: () => searchOpenAlex(term, { yearFrom, yearTo }) });
-      if (on("crossref")) tasks.push({ source: "crossref", term, run: () => searchCrossref(term, { yearFrom }) });
+      if (on("openalex")) tasks.push({ source: "openalex", term, run: () => searchOpenAlex(term, { yearFrom, yearTo, page }) });
+      if (on("crossref")) tasks.push({ source: "crossref", term, run: () => searchCrossref(term, { yearFrom, page }) });
     } else {
-      if (on("openalex")) tasks.push({ source: "openalex", term, run: () => searchOpenAlex(term, { yearFrom, yearTo, koreanOnly: scope === "ko" }) });
+      if (on("openalex")) tasks.push({ source: "openalex", term, run: () => searchOpenAlex(term, { yearFrom, yearTo, koreanOnly: scope === "ko", page }) });
       if (scope === "ko") continue;
-      if (on("s2")) tasks.push({ source: "s2", term, run: () => searchS2(term, { yearFrom, yearTo }) });
-      if (on("eric")) tasks.push({ source: "eric", term, run: () => searchEric(term) });
+      if (on("s2")) tasks.push({ source: "s2", term, run: () => searchS2(term, { yearFrom, yearTo, page }) });
+      if (on("eric")) tasks.push({ source: "eric", term, run: () => searchEric(term, { page }) });
     }
   }
   return tasks;
@@ -77,18 +84,23 @@ export function applyScope(results: Candidate[], scope: Scope): Candidate[] {
   return results;
 }
 
-export async function runSearch(input: SearchInput, maxResults = 200): Promise<SearchOutput> {
+export async function runSearch(input: SearchInput, maxResults = 500): Promise<SearchOutput> {
   const tasks = planTasks(input);
   const warnings = new Set<string>();
   const lists: RankedList[] = [];
   const perSource: Partial<Record<SourceId, number>> = {};
+  const available: Partial<Record<SourceId, number>> = {};
+  let hasMore = false;
 
   await Promise.all(
     tasks.map((t) =>
       lanes[t.source](t.run)
-        .then((items) => {
+        .then(({ items, total }) => {
           lists.push({ source: t.source, term: t.term, items });
           perSource[t.source] = (perSource[t.source] ?? 0) + items.length;
+          if (total != null) available[t.source] = Math.max(available[t.source] ?? 0, total);
+          // 이번 페이지가 꽉 찼으면 뒤에 더 있다
+          if (items.length >= 50) hasMore = true;
         })
         .catch((e) => {
           const msg = e instanceof SourceError ? `${e.source}: ${e.message}` : `${t.source}: 검색 중 오류`;
@@ -103,5 +115,5 @@ export async function runSearch(input: SearchInput, maxResults = 200): Promise<S
 
   const totalRaw = lists.reduce((n, l) => n + l.items.length, 0);
   const merged = applyScope(mergeAndRank(lists), input.scope);
-  return { results: merged.slice(0, maxResults), totalRaw, totalUnique: merged.length, perSource, warnings: [...warnings] };
+  return { results: merged.slice(0, maxResults), totalRaw, totalUnique: merged.length, perSource, available, hasMore, warnings: [...warnings] };
 }

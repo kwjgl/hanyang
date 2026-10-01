@@ -39,6 +39,12 @@ export interface Candidate {
   score?: number;
 }
 
+/** 한 번의 검색 호출 결과: 이번 페이지 논문과, 검색어에 맞는 전체 건수 */
+export interface SearchPage {
+  items: Candidate[];
+  total: number | null;
+}
+
 export type StudyType = "실험·준실험" | "조사·상관" | "질적" | "혼합" | "메타분석·리뷰" | "이론·설계" | "기타";
 
 export interface SummaryData {

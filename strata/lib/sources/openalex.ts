@@ -1,5 +1,5 @@
 import { normalizeDoi, reconstructAbstract, titleKey } from "@/lib/text";
-import type { Candidate } from "@/lib/types";
+import type { Candidate, SearchPage } from "@/lib/types";
 import { fetchJson } from "./http";
 
 const BASE = "https://api.openalex.org";
@@ -78,17 +78,17 @@ export function parseOpenAlexWork(w: OpenAlexWork): Candidate | null {
 
 export async function searchOpenAlex(
   term: string,
-  opts: { yearFrom?: number; yearTo?: number; koreanOnly?: boolean; perPage?: number } = {},
-): Promise<Candidate[]> {
+  opts: { yearFrom?: number; yearTo?: number; koreanOnly?: boolean; perPage?: number; page?: number } = {},
+): Promise<SearchPage> {
   const filters: string[] = [];
   if (opts.yearFrom || opts.yearTo) filters.push(`publication_year:${opts.yearFrom ?? ""}-${opts.yearTo ?? ""}`);
   if (opts.koreanOnly) filters.push("language:ko");
   const params = withAuth(
-    new URLSearchParams({ search: term, "per-page": String(opts.perPage ?? 100), select: SELECT }),
+    new URLSearchParams({ search: term, "per-page": String(opts.perPage ?? 100), page: String(opts.page ?? 1), select: SELECT }),
   );
   if (filters.length) params.set("filter", filters.join(","));
-  const data = await fetchJson<{ results: OpenAlexWork[] }>("OpenAlex", `${BASE}/works?${params}`);
-  return (data.results ?? []).map(parseOpenAlexWork).filter((c): c is Candidate => !!c);
+  const data = await fetchJson<{ meta?: { count?: number }; results: OpenAlexWork[] }>("OpenAlex", `${BASE}/works?${params}`);
+  return { items: (data.results ?? []).map(parseOpenAlexWork).filter((c): c is Candidate => !!c), total: data.meta?.count ?? null };
 }
 
 export async function openAlexByDoi(doi: string): Promise<Candidate | null> {

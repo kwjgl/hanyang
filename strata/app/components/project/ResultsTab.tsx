@@ -167,8 +167,14 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
             </span>
           ) : s.result && !s.related ? (
             <>
-              {s.result.terms.length}개 검색어로 <b>{s.result.totalRaw.toLocaleString()}</b>건 수집 → 중복 제거 <b>{s.result.totalUnique.toLocaleString()}</b>건 · 상위{" "}
-              <b>{list.length}</b>건
+              {availableText(s.result.available)}
+              관련도 높은 순으로 <b>{s.result.totalRaw.toLocaleString()}</b>건 가져옴 → 중복 제거 <b>{s.result.totalUnique.toLocaleString()}</b>건
+              {list.length !== s.result.totalUnique && (
+                <>
+                  {" "}
+                  · 필터 후 <b>{list.length}</b>건
+                </>
+              )}
             </>
           ) : (
             !s.related && "검색창에 주제를 넣고 찾기를 누르세요."
@@ -266,6 +272,14 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
               {Math.min(PAGE, list.length - shown)}건 더 보기
             </button>
           )}
+          {!s.related && s.result && shown >= list.length && s.result.hasMore !== false && (
+            <div style={{ textAlign: "center", margin: "16px 0" }}>
+              <button className="btn" onClick={s.loadMore} disabled={s.phase !== "idle"}>
+                {s.phase === "more" ? "가져오는 중…" : "다음 페이지 더 가져오기"}
+              </button>
+              <p className="hint">출처마다 관련도 다음 순위 논문을 더 가져와 아래에 붙입니다.</p>
+            </div>
+          )}
           {(s.result || s.related) && list.length === 0 && s.phase === "idle" && <p className="empty">조건에 맞는 결과가 없습니다. 필터를 풀어 보세요.</p>}
         </div>
         <Tray s={s} data={data} />
@@ -284,6 +298,15 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
       </div>
     </>
   );
+}
+
+/** "검색어에 맞는 논문: OpenAlex 약 52,341건 · ERIC 3,120건 중" */
+function availableText(a?: Partial<Record<SourceId, number>>) {
+  const parts = Object.entries(a ?? {})
+    .filter(([, n]) => (n ?? 0) > 0)
+    .sort((x, y) => (y[1] ?? 0) - (x[1] ?? 0))
+    .map(([k, n]) => `${SOURCE_LABEL[k as SourceId]} ${(n ?? 0).toLocaleString()}건`);
+  return parts.length ? <>검색어에 맞는 논문: {parts.join(" · ")} 중 </> : null;
 }
 
 function AddChip({ onAdd }: { onAdd: (t: string) => void }) {

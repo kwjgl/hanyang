@@ -19,6 +19,10 @@ export interface SearchResult {
   totalRaw: number;
   totalUnique: number;
   perSource?: Partial<Record<SourceId, number>>;
+  /** 출처별로 검색어에 맞는 전체 건수 */
+  available?: Partial<Record<SourceId, number>>;
+  hasMore?: boolean;
+  page?: number;
   warnings: string[];
   saved: boolean;
 }
@@ -50,7 +54,7 @@ export function useSearch(projectId: string, defaultQuery: string, initial?: Sea
   const [autoExpand, setAutoExpand] = useState(true);
   const [scope, setScope] = useState<Scope>("all");
   const [sources, setSources] = useState<SourceId[]>(ALL_SOURCES);
-  const [phase, setPhase] = useState<"idle" | "expanding" | "searching">("idle");
+  const [phase, setPhase] = useState<"idle" | "expanding" | "searching" | "more">("idle");
   /** 검색어 확장을 못 했을 때 그 이유 (결과 위에 계속 보여준다) */
   const [expandError, setExpandError] = useState<string | null>(null);
   const [result, setResult] = useState<SearchResult | null>(initial ?? null);
@@ -95,6 +99,36 @@ export function useSearch(projectId: string, defaultQuery: string, initial?: Sea
     },
     [query, chips, autoExpand, expandedFor, projectId, sources, scope],
   );
+
+  /** 각 출처의 다음 페이지를 가져와 지금 결과 뒤에 붙인다 */
+  const loadMore = useCallback(async () => {
+    if (!result) return;
+    setPhase("more");
+    try {
+      const page = (result.page ?? 1) + 1;
+      const r = await api<SearchResult>("/api/search", {
+        body: { projectId, query: result.query, terms: result.terms, sources, scope: result.scope, page, searchId: result.searchId },
+      });
+      const have = new Set(result.results.map((x) => x.key));
+      const fresh = r.results.filter((x) => !have.has(x.key));
+      const available = { ...result.available };
+      for (const [k, v] of Object.entries(r.available ?? {})) available[k as SourceId] = Math.max(available[k as SourceId] ?? 0, v ?? 0);
+      setResult({
+        ...result,
+        results: [...result.results, ...fresh],
+        totalRaw: result.totalRaw + r.totalRaw,
+        totalUnique: result.results.length + fresh.length,
+        available,
+        page,
+        hasMore: !!r.hasMore && fresh.length > 0,
+      });
+      toast(fresh.length ? `${fresh.length}건을 더 가져왔습니다` : "더 가져올 새 논문이 없습니다");
+    } catch (e) {
+      toast(errMsg(e));
+    } finally {
+      setPhase("idle");
+    }
+  }, [result, projectId, sources]);
 
   const openSearch = useCallback(async (id: string) => {
     try {
@@ -212,7 +246,7 @@ export function useSearch(projectId: string, defaultQuery: string, initial?: Sea
   return {
     query, setQuery, chips, setChips, autoExpand, setAutoExpand, scope, setScope, sources, setSources,
     phase, expandError, result, related, setRelated, sel, setSel, tray, setItem, removeItem, retry,
-    runSearch, openSearch, toggleSaved, loadRelated, summarize, save,
+    runSearch, loadMore, openSearch, toggleSaved, loadRelated, summarize, save,
     koreanQuery: hasHangul(query) ? query : (chips.find((c) => c.on && hasHangul(c.text))?.text ?? query),
   };
 }

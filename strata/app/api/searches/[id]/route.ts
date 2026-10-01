@@ -16,6 +16,9 @@ export const GET = route<RouteCtx<{ id: string }>>(async ({ supabase, ctx }) => 
     totalRaw: s.total_raw,
     totalUnique: s.total_unique,
     saved: s.saved,
+    available: s.filters?.available ?? {},
+    page: s.filters?.page ?? 1,
+    hasMore: true,
     warnings: [],
   });
 });

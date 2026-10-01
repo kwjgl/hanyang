@@ -221,3 +221,55 @@ describe("Korean particle stripping", () => {
     expect(stripKoreanParticles("평가 교사 reading의")).toBe("평가 교사 reading");
   });
 });
+
+describe("paging", () => {
+  it("passes the page number to every source", async () => {
+    const t = planTasks({ terms: ["digital assessment", "디지털 평가"], sources: ["openalex", "s2", "eric", "crossref"], scope: "all", page: 3 });
+    expect(t.length).toBe(5);
+  });
+});
+
+import { afterEach, vi } from "vitest";
+import { searchCrossref } from "@/lib/sources/crossref";
+import { searchEric } from "@/lib/sources/eric";
+import { searchOpenAlex } from "@/lib/sources/openalex";
+import { searchS2 } from "@/lib/sources/semanticscholar";
+
+describe("source paging and totals", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const stub = (body: unknown) => {
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", async (u: string) => {
+      urls.push(u);
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    return urls;
+  };
+
+  it("OpenAlex: page parameter and meta.count", async () => {
+    const urls = stub({ meta: { count: 52341 }, results: [openAlexWork] });
+    const r = await searchOpenAlex("digital assessment", { page: 2 });
+    expect(new URL(urls[0]).searchParams.get("page")).toBe("2");
+    expect(r.total).toBe(52341);
+    expect(r.items).toHaveLength(1);
+  });
+  it("Semantic Scholar: offset from page, stops past 1,000", async () => {
+    const urls = stub({ total: 9000, data: [s2Paper] });
+    const r = await searchS2("digital assessment", { page: 3 });
+    expect(new URL(urls[0]).searchParams.get("offset")).toBe("200");
+    expect(r.total).toBe(9000);
+    expect((await searchS2("x", { page: 11 })).items).toEqual([]);
+  });
+  it("ERIC: start from page and numFound", async () => {
+    const urls = stub({ response: { numFound: 3120, docs: [ericDoc] } });
+    const r = await searchEric("digital assessment", { page: 2 });
+    expect(new URL(urls[0]).searchParams.get("start")).toBe("100");
+    expect(r.total).toBe(3120);
+  });
+  it("Crossref: offset from page and total-results", async () => {
+    const urls = stub({ message: { "total-results": 800, items: [crossrefItem] } });
+    const r = await searchCrossref("디지털 평가", { page: 2 });
+    expect(new URL(urls[0]).searchParams.get("offset")).toBe("60");
+    expect(r.total).toBe(800);
+  });
+});

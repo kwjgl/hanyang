@@ -1,5 +1,5 @@
 import { normalizeDoi, titleKey } from "@/lib/text";
-import type { Candidate } from "@/lib/types";
+import type { Candidate, SearchPage } from "@/lib/types";
 import { fetchJson } from "./http";
 
 const BASE = "https://api.semanticscholar.org";
@@ -55,13 +55,17 @@ export function parseS2Paper(p: S2Paper): Candidate | null {
   };
 }
 
-export async function searchS2(term: string, opts: { yearFrom?: number; yearTo?: number; limit?: number } = {}) {
-  const params = new URLSearchParams({ query: term, limit: String(opts.limit ?? 50), fields: FIELDS });
+export async function searchS2(term: string, opts: { yearFrom?: number; yearTo?: number; limit?: number; page?: number } = {}): Promise<SearchPage> {
+  const limit = opts.limit ?? 100;
+  // Semantic Scholar 검색은 앞쪽 1,000건까지만 넘겨볼 수 있다
+  const offset = ((opts.page ?? 1) - 1) * limit;
+  if (offset + limit > 1000) return { items: [], total: null };
+  const params = new URLSearchParams({ query: term, limit: String(limit), offset: String(offset), fields: FIELDS });
   if (opts.yearFrom || opts.yearTo) params.set("year", `${opts.yearFrom ?? ""}-${opts.yearTo ?? ""}`);
-  const data = await fetchJson<{ data?: S2Paper[] }>("Semantic Scholar", `${BASE}/graph/v1/paper/search?${params}`, {
+  const data = await fetchJson<{ total?: number; data?: S2Paper[] }>("Semantic Scholar", `${BASE}/graph/v1/paper/search?${params}`, {
     headers: headers(),
   });
-  return (data.data ?? []).map(parseS2Paper).filter((c): c is Candidate => !!c);
+  return { items: (data.data ?? []).map(parseS2Paper).filter((c): c is Candidate => !!c), total: data.total ?? null };
 }
 
 /** 초록이 없을 때 DOI로 다시 찾는다. 초록이 없으면 TLDR(한 줄 요약)이라도 돌려준다. */

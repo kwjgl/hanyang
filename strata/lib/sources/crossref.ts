@@ -1,5 +1,5 @@
 import { normalizeDoi, stripTags, titleKey } from "@/lib/text";
-import type { Candidate } from "@/lib/types";
+import type { Candidate, SearchPage } from "@/lib/types";
 import { fetchJson } from "./http";
 
 const BASE = "https://api.crossref.org";
@@ -58,11 +58,12 @@ export function parseCrossrefItem(it: CrossrefItem): Candidate | null {
   };
 }
 
-export async function searchCrossref(term: string, opts: { rows?: number; yearFrom?: number } = {}) {
-  const params = new URLSearchParams({ "query.bibliographic": term, rows: String(opts.rows ?? 60), select: SELECT });
+export async function searchCrossref(term: string, opts: { rows?: number; yearFrom?: number; page?: number } = {}): Promise<SearchPage> {
+  const rows = opts.rows ?? 60;
+  const params = new URLSearchParams({ "query.bibliographic": term, rows: String(rows), offset: String(((opts.page ?? 1) - 1) * rows), select: SELECT });
   if (opts.yearFrom) params.set("filter", `from-pub-date:${opts.yearFrom}`);
-  const data = await fetchJson<{ message?: { items?: CrossrefItem[] } }>("Crossref", `${BASE}/works?${params}${mailto()}`);
-  return (data.message?.items ?? []).map(parseCrossrefItem).filter((c): c is Candidate => !!c);
+  const data = await fetchJson<{ message?: { "total-results"?: number; items?: CrossrefItem[] } }>("Crossref", `${BASE}/works?${params}${mailto()}`);
+  return { items: (data.message?.items ?? []).map(parseCrossrefItem).filter((c): c is Candidate => !!c), total: data.message?.["total-results"] ?? null };
 }
 
 export async function crossrefByDoi(doi: string): Promise<Candidate | null> {

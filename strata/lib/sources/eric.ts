@@ -1,5 +1,5 @@
 import { normalizeDoi, titleKey } from "@/lib/text";
-import type { Candidate } from "@/lib/types";
+import type { Candidate, SearchPage } from "@/lib/types";
 import { fetchJson } from "./http";
 
 const BASE = "https://api.ies.ed.gov/eric/";
@@ -61,8 +61,10 @@ export function parseEricDoc(d: EricDoc): Candidate | null {
   };
 }
 
-export async function searchEric(term: string, opts: { rows?: number } = {}) {
-  const params = new URLSearchParams({ search: term, format: "json", rows: String(opts.rows ?? 50), fields: FIELDS });
-  const data = await fetchJson<{ response?: { docs?: EricDoc[] } }>("ERIC", `${BASE}?${params}`);
-  return (data.response?.docs ?? []).map(parseEricDoc).filter((c): c is Candidate => !!c);
+export async function searchEric(term: string, opts: { rows?: number; page?: number } = {}): Promise<SearchPage> {
+  const rows = opts.rows ?? 100;
+  const start = ((opts.page ?? 1) - 1) * rows;
+  const params = new URLSearchParams({ search: term, format: "json", rows: String(rows), start: String(start), fields: FIELDS });
+  const data = await fetchJson<{ response?: { numFound?: number; docs?: EricDoc[] } }>("ERIC", `${BASE}?${params}`);
+  return { items: (data.response?.docs ?? []).map(parseEricDoc).filter((c): c is Candidate => !!c), total: data.response?.numFound ?? null };
 }
