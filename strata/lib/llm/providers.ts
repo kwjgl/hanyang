@@ -30,57 +30,107 @@ function parseJson<S extends z.ZodType>(text: string, schema: S): z.infer<S> | n
   }
 }
 
-async function post(url: string, headers: Record<string, string>, body: unknown, label: string) {
+/** HTTP 실패를 상태 코드와 함께 넘긴다 (0 = 연결 자체가 안 됨) */
+class HttpFail extends Error {
+  constructor(
+    public status: number,
+    public body: string,
+  ) {
+    super(`HTTP ${status}`);
+  }
+}
+
+async function rawPost(url: string, headers: Record<string, string>, body: unknown) {
   let res: Response;
   try {
     res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body), cache: "no-store" });
   } catch {
-    throw new ClaudeError(`${label}에 연결하지 못했습니다.`, 503);
+    throw new HttpFail(0, "");
   }
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
-    const msg = JSON.stringify(data).slice(0, 300);
-    if (res.status === 401 || res.status === 403 || /API_KEY_INVALID|invalid_api_key|API key not valid/i.test(msg))
-      throw new ClaudeError(`${label} API 키가 올바르지 않습니다. 설정에서 키를 다시 확인해 주세요.`, 401);
-    if (res.status === 429)
-      throw new ClaudeError(
-        label === "Gemini" ? "Gemini 무료 사용량(분당·하루 요청 수)을 넘었습니다. 잠시 뒤 다시 시도해 주세요." : `${label} 요청 한도에 걸렸습니다. 충전 잔액이나 한도를 확인해 주세요.`,
-        429,
-      );
-    throw new ClaudeError(`${label} 오류 (${res.status})`, 502);
-  }
+  if (!res.ok) throw new HttpFail(res.status, JSON.stringify(data).slice(0, 400));
   return data;
 }
 
-async function callGemini<S extends z.ZodType>(apiKey: string, system: string, user: string, schema: S, maxTokens: number) {
-  const model = PROVIDERS.gemini.model;
+const isKeyError = (f: HttpFail) => f.status === 401 || f.status === 403 || /API_KEY_INVALID|invalid_api_key|API key not valid/i.test(f.body);
+const isBusy = (f: HttpFail) => f.status === 0 || f.status === 500 || f.status === 502 || f.status === 503 || f.status === 504;
+
+function toUserError(f: HttpFail, label: string): ClaudeError {
+  if (isKeyError(f)) return new ClaudeError(`${label} API 키가 올바르지 않습니다. 설정에서 키를 다시 확인해 주세요.`, 401);
+  if (f.status === 429)
+    return new ClaudeError(
+      label === "Gemini" ? "Gemini 무료 사용량(분당·하루 요청 수)을 넘었습니다. 잠시 뒤 다시 시도해 주세요." : `${label} 요청 한도에 걸렸습니다. 충전 잔액이나 한도를 확인해 주세요.`,
+      429,
+    );
+  if (f.status === 0) return new ClaudeError(`${label}에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요.`, 503);
+  if (isBusy(f)) return new ClaudeError(`${label} 서버가 지금 붐빕니다. 잠시 뒤 다시 시도하거나, 설정에서 다른 AI를 골라 주세요.`, 503);
+  return new ClaudeError(`${label} 오류 (${f.status})`, 502);
+}
+
+async function post(url: string, headers: Record<string, string>, body: unknown, label: string) {
+  try {
+    return await rawPost(url, headers, body);
+  } catch (e) {
+    throw e instanceof HttpFail ? toUserError(e, label) : e;
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Gemini는 무료 사용자에게 "서버가 붐빔(503)"이 자주 나고, 무료 사용량도 모델마다 따로 센다.
+ * 그래서 잠깐 쉬었다 다시 해 보고, 그래도 안 되면 다음 모델로 넘어간다.
+ */
+export const GEMINI_MODELS = [PROVIDERS.gemini.model, "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"];
+
+async function callGemini<S extends z.ZodType>(apiKey: string, system: string, user: string, schema: S, maxTokens: number, waitMs = 800) {
   let totalIn = 0;
   let totalOut = 0;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const data = (await post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      { "x-goog-api-key": apiKey },
-      {
-        systemInstruction: { parts: [{ text: withSchema(system, schema) }] },
-        contents: [{ role: "user", parts: [{ text: user }] }],
-        generationConfig: { responseMimeType: "application/json", maxOutputTokens: maxTokens },
-      },
-      "Gemini",
-    )) as {
-      candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
-      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number };
-      modelVersion?: string;
-    };
-    totalIn += data.usageMetadata?.promptTokenCount ?? 0;
-    totalOut += (data.usageMetadata?.candidatesTokenCount ?? 0) + (data.usageMetadata?.thoughtsTokenCount ?? 0);
-    const text = (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
-    const parsed = parseJson(text, schema);
-    if (parsed) {
-      const m = data.modelVersion ?? model;
-      return { data: parsed, usage: { model: m, inputTokens: totalIn, outputTokens: totalOut, costUsd: costUsd(m, totalIn, totalOut) } };
+  let last: HttpFail | null = null;
+  const started = Date.now();
+  for (const model of GEMINI_MODELS) {
+    let busyTries = 0;
+    let parseTries = 0;
+    while (Date.now() - started < 40_000) {
+      let data;
+      try {
+        data = (await rawPost(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          { "x-goog-api-key": apiKey },
+          {
+            systemInstruction: { parts: [{ text: withSchema(system, schema) }] },
+            contents: [{ role: "user", parts: [{ text: user }] }],
+            generationConfig: { responseMimeType: "application/json", maxOutputTokens: maxTokens },
+          },
+        )) as {
+          candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
+          usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number };
+          modelVersion?: string;
+        };
+      } catch (e) {
+        if (!(e instanceof HttpFail)) throw e;
+        if (isKeyError(e)) throw toUserError(e, "Gemini");
+        last = e;
+        if (isBusy(e) && busyTries < 1) {
+          busyTries++;
+          await sleep(waitMs);
+          continue;
+        }
+        break; // 붐빔이 계속되거나, 사용량 초과(429)·없는 모델(404)이면 다음 모델로
+      }
+      totalIn += data.usageMetadata?.promptTokenCount ?? 0;
+      totalOut += (data.usageMetadata?.candidatesTokenCount ?? 0) + (data.usageMetadata?.thoughtsTokenCount ?? 0);
+      const text = (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
+      const parsed = parseJson(text, schema);
+      if (parsed) {
+        const m = data.modelVersion ?? model;
+        return { data: parsed, usage: { model: m, inputTokens: totalIn, outputTokens: totalOut, costUsd: costUsd(m, totalIn, totalOut) } };
+      }
+      if (data.candidates?.[0]?.finishReason === "SAFETY") throw new ClaudeError("Gemini가 이 요청을 처리하지 않았습니다. 다른 논문으로 시도해 주세요.", 422);
+      if (++parseTries >= 2) break;
     }
-    if (data.candidates?.[0]?.finishReason === "SAFETY") throw new ClaudeError("Gemini가 이 요청을 처리하지 않았습니다. 다른 논문으로 시도해 주세요.", 422);
   }
+  if (last) throw toUserError(last, "Gemini");
   throw new ClaudeError("Gemini 응답을 읽지 못했습니다. 다시 시도해 주세요.");
 }
 
@@ -125,11 +175,11 @@ async function callOpenAI<S extends z.ZodType>(apiKey: string, system: string, u
 export async function callAi<S extends z.ZodType>(
   provider: Provider,
   apiKey: string,
-  req: { system: string; user: string; schema: S; maxTokens?: number },
+  req: { system: string; user: string; schema: S; maxTokens?: number; /** 테스트용: 다시 시도 전 대기 */ waitMs?: number },
 ): Promise<{ data: z.infer<S>; usage: Usage }> {
   const maxTokens = req.maxTokens ?? 4000;
   // Gemini는 생각(thinking) 토큰도 출력 한도에 포함되므로 넉넉히 둔다
-  if (provider === "gemini") return callGemini(apiKey, req.system, req.user, req.schema, Math.max(maxTokens, 8192));
+  if (provider === "gemini") return callGemini(apiKey, req.system, req.user, req.schema, Math.max(maxTokens, 8192), req.waitMs);
   if (provider === "openai") return callOpenAI(apiKey, req.system, req.user, req.schema, maxTokens);
   return callStructured({ apiKey, ...req });
 }

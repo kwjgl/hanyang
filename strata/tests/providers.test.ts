@@ -94,3 +94,32 @@ describe("stored AI settings", () => {
     expect(checkKeyFormat("anthropic", "sk-x")).not.toBeNull();
   });
 });
+
+describe("Gemini busy (503) handling", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const fast = { ...req, waitMs: 0 };
+  const busy = { status: 503, body: { error: { code: 503, status: "UNAVAILABLE", message: "The model is overloaded." } } };
+
+  it("waits and retries the same model once", async () => {
+    const calls = stub([busy, { body: geminiBody(good) }]);
+    const r = await callAi("gemini", "AQ.test-key-1234567890", fast);
+    expect(calls).toHaveLength(2);
+    expect(calls[1].url).toContain("models/gemini-flash-latest:");
+    expect(r.data.terms_ko).toEqual(["읽기 평가"]);
+  });
+  it("moves to the next Gemini model when one stays busy", async () => {
+    const calls = stub([busy, busy, { body: geminiBody(good) }]);
+    await callAi("gemini", "AQ.test-key-1234567890", fast);
+    expect(calls[2].url).toContain("models/gemini-2.5-flash:");
+  });
+  it("skips a model that does not exist", async () => {
+    const calls = stub([{ status: 404, body: { error: { code: 404, message: "models/x is not found" } } }, { body: geminiBody(good) }]);
+    await callAi("gemini", "AQ.test-key-1234567890", fast);
+    expect(calls[1].url).toContain("models/gemini-2.5-flash:");
+  });
+  it("explains a busy server after every model fails", async () => {
+    const calls = stub([busy]);
+    await expect(callAi("gemini", "AQ.test-key-1234567890", fast)).rejects.toThrow(/붐빕니다/);
+    expect(calls).toHaveLength(8);
+  });
+});
