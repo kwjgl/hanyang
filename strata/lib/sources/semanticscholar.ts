@@ -1,0 +1,89 @@
+import { normalizeDoi, titleKey } from "@/lib/text";
+import type { Candidate } from "@/lib/types";
+import { fetchJson } from "./http";
+
+const BASE = "https://api.semanticscholar.org";
+const FIELDS =
+  "title,authors,year,venue,abstract,citationCount,influentialCitationCount,externalIds,openAccessPdf,url,publicationTypes";
+
+export interface S2Paper {
+  paperId: string;
+  title?: string | null;
+  authors?: { name?: string | null }[];
+  year?: number | null;
+  venue?: string | null;
+  abstract?: string | null;
+  citationCount?: number | null;
+  influentialCitationCount?: number | null;
+  externalIds?: Record<string, string | number> | null;
+  openAccessPdf?: { url?: string | null } | null;
+  url?: string | null;
+  publicationTypes?: string[] | null;
+  tldr?: { text?: string | null } | null;
+}
+
+const headers = (): Record<string, string> => (process.env.S2_API_KEY ? { "x-api-key": process.env.S2_API_KEY } : {});
+
+function kindOf(types: string[] | null | undefined): string | null {
+  if (!types?.length) return null;
+  if (types.includes("Review") || types.includes("MetaAnalysis")) return "review";
+  if (types.includes("Book") || types.includes("BookSection")) return "book-chapter";
+  return "article";
+}
+
+export function parseS2Paper(p: S2Paper): Candidate | null {
+  const title = p.title?.trim();
+  if (!title) return null;
+  const doi = normalizeDoi(p.externalIds?.DOI ? String(p.externalIds.DOI) : null);
+  return {
+    key: doi ? `doi:${doi}` : `t:${titleKey(title)}:${p.year ?? ""}`,
+    doi,
+    title,
+    authors: (p.authors ?? []).map((a) => a.name ?? "").filter(Boolean),
+    year: p.year ?? null,
+    venue: p.venue || null,
+    abstract: p.abstract || null,
+    abstractSource: p.abstract ? "s2" : null,
+    citations: p.citationCount ?? null,
+    url: doi ? `https://doi.org/${doi}` : (p.url ?? null),
+    oaUrl: p.openAccessPdf?.url ?? null,
+    lang: null,
+    kind: kindOf(p.publicationTypes),
+    ids: { s2: p.paperId },
+    sources: ["s2"],
+    impact: { influential: p.influentialCitationCount ?? null },
+  };
+}
+
+export async function searchS2(term: string, opts: { yearFrom?: number; yearTo?: number; limit?: number } = {}) {
+  const params = new URLSearchParams({ query: term, limit: String(opts.limit ?? 50), fields: FIELDS });
+  if (opts.yearFrom || opts.yearTo) params.set("year", `${opts.yearFrom ?? ""}-${opts.yearTo ?? ""}`);
+  const data = await fetchJson<{ data?: S2Paper[] }>("Semantic Scholar", `${BASE}/graph/v1/paper/search?${params}`, {
+    headers: headers(),
+  });
+  return (data.data ?? []).map(parseS2Paper).filter((c): c is Candidate => !!c);
+}
+
+/** 초록이 없을 때 DOI로 다시 찾는다. 초록이 없으면 TLDR(한 줄 요약)이라도 돌려준다. */
+export async function s2AbstractByDoi(doi: string): Promise<{ abstract: string | null; tldr: string | null; influential: number | null }> {
+  try {
+    const p = await fetchJson<S2Paper>(
+      "Semantic Scholar",
+      `${BASE}/graph/v1/paper/DOI:${encodeURIComponent(doi)}?fields=abstract,tldr,influentialCitationCount`,
+      { headers: headers() },
+    );
+    return { abstract: p.abstract || null, tldr: p.tldr?.text || null, influential: p.influentialCitationCount ?? null };
+  } catch {
+    return { abstract: null, tldr: null, influential: null };
+  }
+}
+
+/** 비슷한 논문 추천 */
+export async function s2Recommendations(doi: string, limit = 30): Promise<Candidate[]> {
+  const data = await fetchJson<{ recommendedPapers?: S2Paper[] }>(
+    "Semantic Scholar",
+    `${BASE}/recommendations/v1/papers/forpaper/DOI:${encodeURIComponent(doi)}?limit=${limit}&fields=${FIELDS}`,
+    { headers: headers() },
+  );
+  return (data.recommendedPapers ?? []).map(parseS2Paper).filter((c): c is Candidate => !!c);
+}
