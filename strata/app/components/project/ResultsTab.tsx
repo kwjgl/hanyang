@@ -56,9 +56,16 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
 
   return (
     <>
-      {s.chips.length > 0 && (
+      {s.expandError && s.result && !s.related && (
+        <div className="warnbox" style={{ marginTop: 12 }}>
+          검색어를 넓히지 못해 입력한 검색어로만 찾았습니다 ({s.expandError}){" "}
+          {/[\uAC00-\uD7A3]/.test(s.query) && "한국어로만 찾으면 국내 자료만 걸립니다. "}
+          아래 <b>+ 추가</b>로 영어 키워드(예: digital reading assessment)를 넣고 <b>이 검색어로 다시 찾기</b>를 누르거나, 설정에서 API 키를 등록하면 해외 논문까지 넓게 찾습니다.
+        </div>
+      )}
+      {(s.chips.length > 0 || s.result) && (
         <div className="expand">
-          <span className="lbl">확장 검색어</span>
+          <span className="lbl">{s.chips.length ? "확장 검색어" : "검색어 추가"}</span>
           {s.chips.map((c, i) => (
             <span key={c.text} className={`chip ${c.on ? "on" : ""}`}>
               <button

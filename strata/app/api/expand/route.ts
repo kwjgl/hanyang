@@ -1,3 +1,6 @@
+// 여러 출처를 기다리거나 Claude를 호출하므로 Vercel 기본 제한(10초)보다 길게 둔다
+export const maxDuration = 60;
+
 import { ExpandSchema } from "@/lib/claude/schemas";
 import { EXPAND_SYSTEM, expandUser } from "@/lib/claude/prompts";
 import { runAi } from "@/lib/server/ai";

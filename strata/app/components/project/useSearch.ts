@@ -51,6 +51,8 @@ export function useSearch(projectId: string, defaultQuery: string, initial?: Sea
   const [scope, setScope] = useState<Scope>("all");
   const [sources, setSources] = useState<SourceId[]>(ALL_SOURCES);
   const [phase, setPhase] = useState<"idle" | "expanding" | "searching">("idle");
+  /** 검색어 확장을 못 했을 때 그 이유 (결과 위에 계속 보여준다) */
+  const [expandError, setExpandError] = useState<string | null>(null);
   const [result, setResult] = useState<SearchResult | null>(initial ?? null);
   const [related, setRelated] = useState<{ title: string; results: Hit[] } | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -70,9 +72,10 @@ export function useSearch(projectId: string, defaultQuery: string, initial?: Sea
           const r = await api<{ terms: string[] }>("/api/expand", { body: { query: q, projectId } });
           setChips(r.terms.map((text) => ({ text, on: true })));
           setExpandedFor(q);
+          setExpandError(null);
           terms = r.terms;
         } catch (e) {
-          toast(`검색어 확장을 건너뜁니다: ${errMsg(e)}`);
+          setExpandError(errMsg(e));
           setChips([]);
           setExpandedFor(q);
           terms = [];
@@ -208,7 +211,7 @@ export function useSearch(projectId: string, defaultQuery: string, initial?: Sea
 
   return {
     query, setQuery, chips, setChips, autoExpand, setAutoExpand, scope, setScope, sources, setSources,
-    phase, result, related, setRelated, sel, setSel, tray, setItem, removeItem, retry,
+    phase, expandError, result, related, setRelated, sel, setSel, tray, setItem, removeItem, retry,
     runSearch, openSearch, toggleSaved, loadRelated, summarize, save,
     koreanQuery: hasHangul(query) ? query : (chips.find((c) => c.on && hasHangul(c.text))?.text ?? query),
   };

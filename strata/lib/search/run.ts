@@ -3,7 +3,7 @@ import { searchEric } from "@/lib/sources/eric";
 import { limiter, SourceError } from "@/lib/sources/http";
 import { searchOpenAlex } from "@/lib/sources/openalex";
 import { searchS2 } from "@/lib/sources/semanticscholar";
-import { hasHangul } from "@/lib/text";
+import { hasHangul, stripKoreanParticles } from "@/lib/text";
 import type { Candidate, Scope, SourceId } from "@/lib/types";
 import { mergeAndRank, type RankedList } from "./merge";
 
@@ -40,18 +40,24 @@ interface Task {
 
 /**
  * 어떤 검색어를 어떤 출처에 보낼지 정한다.
- * - 한국어 검색어: OpenAlex(국문 논문만)·Crossref (국내 학술지 대부분이 DOI를 Crossref에 등록)
+ * - 한국어 검색어: 조사를 뗀 뒤 OpenAlex·Crossref (국내 학술지 대부분이 DOI를 Crossref에 등록)
  * - 영어 검색어: OpenAlex·Semantic Scholar·ERIC. 국내 범위면 OpenAlex만 (국내 학술지의 영문 제목·초록으로 찾음)
  */
 export function planTasks(input: SearchInput): Task[] {
   const { terms, sources, scope, yearFrom, yearTo } = input;
   const on = (s: SourceId) => sources.includes(s);
   const tasks: Task[] = [];
-  for (const term of terms) {
-    const ko = hasHangul(term);
+  const seen = new Set<string>();
+  for (const raw of terms) {
+    const ko = hasHangul(raw);
+    // 한국어는 조사를 떼어야 제목·키워드와 맞는다
+    const term = ko ? stripKoreanParticles(raw) : raw.trim();
+    if (!term || seen.has(term)) continue;
+    seen.add(term);
     if (ko) {
       if (scope === "intl") continue;
-      if (on("openalex")) tasks.push({ source: "openalex", term, run: () => searchOpenAlex(term, { yearFrom, yearTo, koreanOnly: true }) });
+      // 한국어 단어로 찾으면 이미 국문 논문만 걸린다. 언어 필터는 영문 초록만 등록된 국내 논문을 놓치게 해서 쓰지 않는다
+      if (on("openalex")) tasks.push({ source: "openalex", term, run: () => searchOpenAlex(term, { yearFrom, yearTo }) });
       if (on("crossref")) tasks.push({ source: "crossref", term, run: () => searchCrossref(term, { yearFrom }) });
     } else {
       if (on("openalex")) tasks.push({ source: "openalex", term, run: () => searchOpenAlex(term, { yearFrom, yearTo, koreanOnly: scope === "ko" }) });

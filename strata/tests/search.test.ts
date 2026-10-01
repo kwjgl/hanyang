@@ -207,3 +207,17 @@ describe("Korean site links", () => {
     for (const l of links) expect(l.href).toContain(encodeURIComponent("기술 강화 문항"));
   });
 });
+
+import { stripKoreanParticles } from "@/lib/text";
+
+describe("Korean particle stripping", () => {
+  it("removes common particles so words match titles", () => {
+    expect(stripKoreanParticles("디지털 환경의 읽기 평가와 문항 설계")).toBe("디지털 환경 읽기 평가 문항 설계");
+    expect(stripKoreanParticles("학생들의 읽기 능력에 대한 연구")).toBe("학생들 읽기 능력 대한 연구");
+    expect(stripKoreanParticles("프로그램을 활용한 수업에서의 효과")).toBe("프로그램 활용한 수업 효과");
+  });
+  it("keeps nouns that end in particle-like syllables", () => {
+    expect(stripKoreanParticles("자기평가 학습효과 구성주의 민주주의")).toBe("자기평가 학습효과 구성주의 민주주의");
+    expect(stripKoreanParticles("평가 교사 reading의")).toBe("평가 교사 reading");
+  });
+});
