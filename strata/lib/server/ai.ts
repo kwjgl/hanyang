@@ -1,16 +1,21 @@
-import { callStructured, ClaudeError, type ClaudeUsage } from "@/lib/claude/client";
+import { ClaudeError, type ClaudeUsage } from "@/lib/claude/client";
 import { decryptSecret } from "@/lib/crypto";
+import { callAi, parseSecrets, PROVIDERS, type Provider } from "@/lib/llm/providers";
 import type { Supa } from "@/lib/supabase/server";
 import type * as z from "zod/v4";
 
-async function userApiKey(supabase: Supa, userId: string): Promise<string> {
+/** 이 사용자가 고른 AI와 그 키 */
+async function userAi(supabase: Supa, userId: string): Promise<{ provider: Provider; key: string }> {
   const { data } = await supabase.from("user_settings").select("api_key_enc").eq("user_id", userId).maybeSingle();
-  if (!data?.api_key_enc) throw new ClaudeError("설정에서 Anthropic API 키를 먼저 등록해 주세요.", 402);
+  let secrets;
   try {
-    return decryptSecret(data.api_key_enc);
+    secrets = parseSecrets(data?.api_key_enc ? decryptSecret(data.api_key_enc) : null);
   } catch {
     throw new ClaudeError("저장된 API 키를 읽지 못했습니다. 설정에서 다시 등록해 주세요.", 402);
   }
+  const key = secrets.keys[secrets.provider];
+  if (!key) throw new ClaudeError(`설정에서 ${PROVIDERS[secrets.provider].label} API 키를 먼저 등록해 주세요.`, 402);
+  return { provider: secrets.provider, key };
 }
 
 export async function monthUsage(supabase: Supa, userId: string): Promise<{ used: number; limit: number }> {
@@ -39,12 +44,22 @@ export async function runAi<S extends z.ZodType>(
   kind: "expand" | "summary" | "classify" | "test",
   req: { system: string; user: string; schema: S; maxTokens?: number },
 ): Promise<z.infer<S>> {
+  return (await runAiWithModel(supabase, userId, kind, req)).data;
+}
+
+/** runAi와 같고, 실제로 답한 모델 이름도 돌려준다 (요약 기록용) */
+export async function runAiWithModel<S extends z.ZodType>(
+  supabase: Supa,
+  userId: string,
+  kind: "expand" | "summary" | "classify" | "test",
+  req: { system: string; user: string; schema: S; maxTokens?: number },
+): Promise<{ data: z.infer<S>; model: string }> {
   const { used, limit } = await monthUsage(supabase, userId);
   if (used >= limit) {
     throw new ClaudeError(`이번 달 AI 사용 한도($${limit.toFixed(2)})에 닿았습니다. 설정에서 한도를 바꿀 수 있습니다.`, 402);
   }
-  const apiKey = await userApiKey(supabase, userId);
-  const { data, usage } = await callStructured({ apiKey, ...req });
+  const { provider, key } = await userAi(supabase, userId);
+  const { data, usage } = await callAi(provider, key, req);
   await record(supabase, userId, kind, usage);
-  return data;
+  return { data, model: usage.model };
 }

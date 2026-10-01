@@ -1,0 +1,94 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as z from "zod/v4";
+import { ClaudeError } from "@/lib/claude/client";
+import { callAi, checkKeyFormat, parsePublic, parseSecrets, toPublic } from "@/lib/llm/providers";
+
+const Schema = z.object({ terms_en: z.array(z.string()), terms_ko: z.array(z.string()) });
+const req = { system: "sys", user: "검색 주제: 읽기 평가", schema: Schema, maxTokens: 500 };
+
+function stub(responses: { status?: number; body: unknown }[]) {
+  const calls: { url: string; init: RequestInit }[] = [];
+  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+    calls.push({ url, init });
+    const r = responses[Math.min(calls.length - 1, responses.length - 1)];
+    return new Response(JSON.stringify(r.body), { status: r.status ?? 200 });
+  });
+  return calls;
+}
+
+const geminiBody = (text: string) => ({
+  candidates: [{ content: { parts: [{ text }] }, finishReason: "STOP" }],
+  usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 50, thoughtsTokenCount: 10 },
+  modelVersion: "gemini-flash-test",
+});
+const openaiBody = (content: string) => ({ choices: [{ message: { content, refusal: null } }], usage: { prompt_tokens: 80, completion_tokens: 40 }, model: "gpt-5-mini-test" });
+const good = JSON.stringify({ terms_en: ["reading assessment"], terms_ko: ["읽기 평가"] });
+
+describe("Gemini", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("sends the key in a header, asks for JSON and validates the answer", async () => {
+    const calls = stub([{ body: geminiBody(good) }]);
+    const r = await callAi("gemini", "AIzaTEST", req);
+    expect(r.data.terms_ko).toEqual(["읽기 평가"]);
+    expect(calls[0].url).toContain("models/gemini-flash-latest:generateContent");
+    expect((calls[0].init.headers as Record<string, string>)["x-goog-api-key"]).toBe("AIzaTEST");
+    const sent = JSON.parse(String(calls[0].init.body));
+    expect(sent.generationConfig.responseMimeType).toBe("application/json");
+    expect(sent.systemInstruction.parts[0].text).toContain('"terms_en"');
+    expect(r.usage.inputTokens).toBe(100);
+    expect(r.usage.outputTokens).toBe(60);
+  });
+  it("retries once when the JSON does not match, then succeeds", async () => {
+    const calls = stub([{ body: geminiBody("{\"oops\":1}") }, { body: geminiBody("```json\n" + good + "\n```") }]);
+    const r = await callAi("gemini", "AIzaTEST", req);
+    expect(calls).toHaveLength(2);
+    expect(r.data.terms_en).toEqual(["reading assessment"]);
+  });
+  it("explains the free-tier limit on 429", async () => {
+    stub([{ status: 429, body: { error: { status: "RESOURCE_EXHAUSTED" } } }]);
+    await expect(callAi("gemini", "AIzaTEST", req)).rejects.toThrow(/무료 사용량/);
+  });
+  it("reports an invalid key", async () => {
+    stub([{ status: 400, body: { error: { message: "API key not valid. Please pass a valid API key.", details: [{ reason: "API_KEY_INVALID" }] } } }]);
+    await expect(callAi("gemini", "AIzaBAD", req)).rejects.toBeInstanceOf(ClaudeError);
+  });
+});
+
+describe("OpenAI", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("uses a bearer key and JSON mode", async () => {
+    const calls = stub([{ body: openaiBody(good) }]);
+    const r = await callAi("openai", "sk-test", req);
+    expect(r.data.terms_en).toEqual(["reading assessment"]);
+    expect(calls[0].url).toBe("https://api.openai.com/v1/chat/completions");
+    expect((calls[0].init.headers as Record<string, string>).Authorization).toBe("Bearer sk-test");
+    const sent = JSON.parse(String(calls[0].init.body));
+    expect(sent.response_format).toEqual({ type: "json_object" });
+    expect(sent.model).toBe("gpt-5-mini");
+    expect(r.usage.model).toBe("gpt-5-mini-test");
+  });
+  it("fails clearly after two unreadable answers", async () => {
+    stub([{ body: openaiBody("not json") }]);
+    await expect(callAi("openai", "sk-test", req)).rejects.toThrow(/읽지 못했습니다/);
+  });
+});
+
+describe("stored AI settings", () => {
+  it("reads the old single Claude key format", () => {
+    expect(parseSecrets("sk-ant-api03-abc")).toEqual({ provider: "anthropic", keys: { anthropic: "sk-ant-api03-abc" } });
+    expect(parsePublic("wxyz")).toEqual({ provider: "anthropic", last4: { anthropic: "wxyz" } });
+  });
+  it("round-trips the multi-provider format and only exposes last 4 characters", () => {
+    const s = { provider: "gemini" as const, keys: { anthropic: "sk-ant-api03-1111", gemini: "AIzaSy2222" } };
+    expect(parseSecrets(JSON.stringify(s))).toEqual(s);
+    const pub = toPublic(s);
+    expect(pub).not.toContain("AIzaSy");
+    expect(parsePublic(pub)).toEqual({ provider: "gemini", last4: { anthropic: "1111", gemini: "2222" } });
+  });
+  it("checks key prefixes per provider", () => {
+    expect(checkKeyFormat("gemini", "AIzaX")).toBeNull();
+    expect(checkKeyFormat("gemini", "sk-x")).not.toBeNull();
+    expect(checkKeyFormat("openai", "sk-proj-x")).toBeNull();
+    expect(checkKeyFormat("anthropic", "sk-x")).not.toBeNull();
+  });
+});

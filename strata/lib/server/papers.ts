@@ -1,11 +1,10 @@
-import { SUMMARY_MODEL } from "@/lib/claude/client";
 import { ClassifySchema, SummarySchema } from "@/lib/claude/schemas";
 import { CLASSIFY_SYSTEM, classifyUser, SUMMARY_SYSTEM, summaryUser } from "@/lib/claude/prompts";
 import { ensureAbstract } from "@/lib/sources/lookup";
 import type { Supa } from "@/lib/supabase/server";
 import type { Candidate, Field, SummaryData } from "@/lib/types";
 import { HttpError, must } from "./api";
-import { runAi } from "./ai";
+import { runAi, runAiWithModel } from "./ai";
 
 export interface PaperRow {
   id: string;
@@ -144,14 +143,14 @@ export async function summarize(supabase: Supa, userId: string, input: Candidate
   }
 
   const fields = (await listFields(supabase)).filter((f) => !f.hidden);
-  const data = await runAi(supabase, userId, "summary", {
+  const { data, model } = await runAiWithModel(supabase, userId, "summary", {
     system: SUMMARY_SYSTEM,
     user: summaryUser(toCandidate(paper), fields),
     schema: SummarySchema,
   });
   const summary: SummaryData = { ...data, fields: data.fields.filter((n) => fields.some((f) => f.name === n)) };
   must(
-    await supabase.from("summaries").upsert({ paper_id: paper.id, data: summary, model: SUMMARY_MODEL, created_by: userId }),
+    await supabase.from("summaries").upsert({ paper_id: paper.id, data: summary, model, created_by: userId }),
     "요약",
   );
   await setAutoFields(supabase, paper.id, summary.fields, fields);

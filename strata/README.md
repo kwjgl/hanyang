@@ -16,7 +16,7 @@
 | 국내 논문 | Crossref·OpenAlex로 자동 검색 + KCI · RISS · DBpia · Google 학술검색으로 바로 가는 링크 + DOI·주소 붙여넣기 / 직접 입력 |
 | 인용 추적 | 이 논문을 인용한 논문 · 참고문헌 · 비슷한 논문 |
 | 검색 기록 | 30일 보관, 다시 검색하지 않고 열기. “이 검색 저장”하면 계속 보관 |
-| 요약 | 고른 논문만 요약 (Claude Sonnet 5.5). 같은 논문은 누가 만든 요약이든 재사용. 분야·연구 유형·대상 학교급을 같은 호출에서 분류 |
+| 요약 | 고른 논문만 요약 (Claude · Gemini · ChatGPT 중 각자 선택). 같은 논문은 누가 만든 요약이든 재사용. 분야·연구 유형·대상 학교급을 같은 호출에서 분류 |
 | 영향력 지표 | 분야·연도 보정 피인용 백분위(상위 1%·10%), 핵심 인용, 최근 논문 · 비학술지 표시 |
 | 비교표 | 소주제·분야·연도로 묶기, 행 펼쳐 요약 전문·원문 초록·메모(공동/나만)·읽기 상태·별표, 표 복사, APA 복사 |
 | 서재 | 전체 · 읽을 것 · 최근 2주 · 별표 · 분야별 |
@@ -56,14 +56,22 @@ Strata는 인터넷 주소로 여는 웹 앱이라 설치할 것이 없습니다
 
 배포는 `kwjgl/strata` 저장소의 main에 올라간 코드로 자동으로 됩니다. Vercel 무료 요금제는 비공개 저장소에서 저장소 주인이 아닌 사람이 올린 커밋을 배포하지 않으므로, 커밋 작성자를 저장소 주인(kwjgl)으로 해야 합니다.
 
-### 요약용 API 키 (각자)
+### 요약에 쓸 AI (각자)
 
-[console.anthropic.com](https://console.anthropic.com)에서 **Billing**으로 충전(최소 $5)하고 **API Keys → Create Key**로 만든 키를 Strata **설정**에 넣고 **연결 테스트**를 누릅니다. Claude 구독(Pro·Max)과 API 요금은 따로입니다. 키가 없어도 검색·보관은 되지만 검색어 확장과 요약은 꺼집니다.
+Strata **설정 → 요약에 쓸 AI**에서 Claude · Gemini · ChatGPT 중 하나를 고르고 그 회사의 API 키를 넣은 뒤 **연결 테스트**를 누릅니다. 사람마다 다른 AI를 써도 됩니다.
+
+| AI | 키 발급 | 요금 |
+|---|---|---|
+| Claude | [console.anthropic.com](https://console.anthropic.com/settings/keys) | 충전 필요(최소 $5). 요약 100편 약 $1 |
+| Gemini | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | 무료 사용량 있음(하루 요청 수 제한). 무료분은 Google이 서비스 개선에 쓸 수 있음 |
+| ChatGPT | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | 충전 필요(최소 $5) |
+
+Claude·ChatGPT 구독(Pro·Plus 등)과 API 요금은 따로입니다. 키가 없어도 검색·보관은 되지만 검색어 확장과 요약은 꺼집니다.
 
 ## 비용
 
 - Supabase · Vercel: 연구실 규모는 무료 요금제로 충분합니다.
-- Claude: 각자 자기 API 키로 청구됩니다. 요약 1편 약 $0.01, 검색어 확장 1회 약 $0.004. 설정의 월 한도(기본 $5)에 닿으면 멈춥니다.
+- AI: 각자 고른 AI의 자기 API 키로 청구됩니다. Claude 기준 요약 1편 약 $0.01, Gemini는 무료 사용량 안에서 0원. 설정의 월 한도(기본 $5)에 닿으면 멈춥니다.
 - 이미 누가 요약한 논문은 다시 요약하지 않고 재사용하므로 비용이 들지 않습니다.
 
 ## 개발

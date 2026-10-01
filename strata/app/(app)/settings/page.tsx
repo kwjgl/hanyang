@@ -1,4 +1,5 @@
 import { SettingsView } from "@/app/components/SettingsView";
+import { parsePublic } from "@/lib/llm/providers";
 import { monthUsage } from "@/lib/server/ai";
 import { listFields } from "@/lib/server/papers";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -25,7 +26,7 @@ export default async function Settings() {
     <SettingsView
       name={profile?.display_name ?? ""}
       email={profile?.email ?? user!.email ?? ""}
-      apiKeyLast4={s?.api_key_last4 ?? null}
+      ai={parsePublic(s?.api_key_last4 ?? null)}
       usage={usage}
       fields={fields}
       fieldCounts={counts}

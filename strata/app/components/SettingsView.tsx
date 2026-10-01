@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, errMsg, toast } from "@/lib/client";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { PROVIDERS, type Provider, type PublicAi } from "@/lib/llm/meta";
 import type { Field } from "@/lib/types";
 import { FieldTag } from "./bits";
 
@@ -20,7 +21,7 @@ function applyTheme(t: Theme) {
 export function SettingsView(props: {
   name: string;
   email: string;
-  apiKeyLast4: string | null;
+  ai: PublicAi;
   usage: { used: number; limit: number };
   fields: Field[];
   fieldCounts: Record<string, number>;
@@ -28,10 +29,8 @@ export function SettingsView(props: {
 }) {
   const router = useRouter();
   const [theme, setTheme] = useState<Theme>("system");
-  const [key, setKey] = useState("");
   const [limit, setLimit] = useState(String(props.usage.limit));
   const [editLimit, setEditLimit] = useState(false);
-  const [testing, setTesting] = useState(false);
   const [newField, setNewField] = useState({ name: "", description: "" });
   const [reclass, setReclass] = useState<{ done: number; total: number } | null>(null);
 
@@ -54,15 +53,6 @@ export function SettingsView(props: {
     }
   };
 
-  const saveKey = (e: React.FormEvent) => {
-    e.preventDefault();
-    call(() => api("/api/settings", { method: "PUT", body: { apiKey: key } }), "API 키를 저장했습니다").then((ok) => ok && setKey(""));
-  };
-  const test = async () => {
-    setTesting(true);
-    await call(() => api("/api/settings/test", { body: {} }), "연결됐습니다. 이 키로 요약할 수 있습니다");
-    setTesting(false);
-  };
   const runReclassify = async () => {
     const ids = props.paperIds;
     setReclass({ done: 0, total: ids.length });
@@ -167,43 +157,7 @@ export function SettingsView(props: {
         </span>
       </section>
 
-      <section>
-        <h2>요약 엔진 · Anthropic API 키</h2>
-        <p className="sub">
-          검색어 확장, 초록 요약, 분야 분류에 Claude Sonnet 5.5를 씁니다. 사용한 만큼 내 Anthropic 계정에 청구됩니다(논문 100편 요약에 약 $1). 논문 검색 자체는 키가 없어도 됩니다.
-        </p>
-        <form className="line" onSubmit={saveKey}>
-          <input
-            type="password"
-            className="field-in"
-            style={{ flex: 1 }}
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            placeholder={props.apiKeyLast4 ? `등록된 키 …${props.apiKeyLast4} (바꾸려면 새 키 입력)` : "sk-ant-api03-…"}
-            aria-label="Anthropic API 키"
-            autoComplete="off"
-          />
-          <button className="btn primary" disabled={!key.trim()}>
-            저장
-          </button>
-          {props.apiKeyLast4 && (
-            <button type="button" className="btn" onClick={test} disabled={testing}>
-              {testing ? "확인 중…" : "연결 테스트"}
-            </button>
-          )}
-        </form>
-        <p className="hint">
-          키는 암호화해서 저장하고 화면에는 끝 4자리만 보여줍니다. 다른 멤버는 볼 수 없습니다. 개인 Claude 구독(Pro·Max)은 이 서버 앱에 연결할 수 없습니다.
-          {props.apiKeyLast4 && (
-            <>
-              {" "}
-              <button className="linkbtn" onClick={() => call(() => api("/api/settings", { method: "PUT", body: { apiKey: null } }), "키를 지웠습니다")}>
-                키 지우기
-              </button>
-            </>
-          )}
-        </p>
-      </section>
+      <AiSection ai={props.ai} />
 
       <section>
         <h2>분야 관리</h2>
@@ -323,6 +277,112 @@ function PasswordSection() {
           바꾸기
         </button>
       </form>
+    </section>
+  );
+}
+
+function AiSection({ ai }: { ai: PublicAi }) {
+  const router = useRouter();
+  const [provider, setProvider] = useState<Provider>(ai.provider);
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState<"save" | "test" | null>(null);
+  const meta = PROVIDERS[provider];
+  const saved = ai.last4[provider];
+
+  const choose = async (p: Provider) => {
+    setProvider(p);
+    setKey("");
+    try {
+      await api("/api/settings", { method: "PUT", body: { provider: p } });
+      router.refresh();
+    } catch (e) {
+      toast(errMsg(e));
+    }
+  };
+  const saveKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy("save");
+    try {
+      await api("/api/settings", { method: "PUT", body: { provider, key: { provider, value: key } } });
+      setKey("");
+      toast(`${meta.label} 키를 저장했습니다`);
+      router.refresh();
+    } catch (e) {
+      toast(errMsg(e));
+    }
+    setBusy(null);
+  };
+  const removeKey = async () => {
+    try {
+      await api("/api/settings", { method: "PUT", body: { key: { provider, value: null } } });
+      toast("키를 지웠습니다");
+      router.refresh();
+    } catch (e) {
+      toast(errMsg(e));
+    }
+  };
+  const test = async () => {
+    setBusy("test");
+    try {
+      await api("/api/settings/test", { body: {} });
+      toast(`연결됐습니다. ${meta.label}로 요약할 수 있습니다`);
+      router.refresh();
+    } catch (e) {
+      toast(errMsg(e));
+    }
+    setBusy(null);
+  };
+
+  return (
+    <section>
+      <h2>요약에 쓸 AI</h2>
+      <p className="sub">검색어 확장, 초록 요약, 분야 분류에 씁니다. 고른 AI의 API 키로 내 계정에 청구됩니다. 논문 검색 자체는 키가 없어도 됩니다.</p>
+      {(Object.keys(PROVIDERS) as Provider[]).map((p) => (
+        <label className="radio" key={p}>
+          <input type="radio" name="ai" checked={provider === p} onChange={() => choose(p)} />
+          <div>
+            <b>
+              {PROVIDERS[p].label} {ai.last4[p] ? <span className="b">키 등록됨 …{ai.last4[p]}</span> : null}
+            </b>
+            <span>{PROVIDERS[p].note}</span>
+          </div>
+        </label>
+      ))}
+      <form className="line" onSubmit={saveKey} style={{ marginTop: 12 }}>
+        <input
+          type="password"
+          className="field-in"
+          style={{ flex: 1 }}
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          placeholder={saved ? `${meta.label} 키 …${saved} (바꾸려면 새 키 입력)` : `${meta.label} API 키 (${meta.keyHint})`}
+          aria-label={`${meta.label} API 키`}
+          autoComplete="off"
+        />
+        <button className="btn primary" disabled={!key.trim() || !!busy}>
+          {busy === "save" ? "저장 중…" : "저장"}
+        </button>
+        {saved && (
+          <button type="button" className="btn" onClick={test} disabled={!!busy}>
+            {busy === "test" ? "확인 중…" : "연결 테스트"}
+          </button>
+        )}
+      </form>
+      <p className="hint">
+        키 발급:{" "}
+        <a href={meta.keyUrl} target="_blank" rel="noopener noreferrer">
+          {meta.keyUrl.replace("https://", "")}
+        </a>
+        {" · "}키는 암호화해서 저장하고 끝 4자리만 보여줍니다. 다른 멤버는 볼 수 없습니다.
+        {saved && (
+          <>
+            {" "}
+            <button className="linkbtn" onClick={removeKey}>
+              {meta.label} 키 지우기
+            </button>
+          </>
+        )}
+      </p>
     </section>
   );
 }
