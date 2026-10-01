@@ -22,5 +22,5 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL(next.startsWith("/") ? next : "/", url.origin));
     }
   }
-  return NextResponse.redirect(new URL("/login?error=1", url.origin));
+  return NextResponse.redirect(new URL("/login?error=link", url.origin));
 }
