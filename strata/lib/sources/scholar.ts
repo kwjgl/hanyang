@@ -38,7 +38,8 @@ export function parseSummary(summary: string | undefined) {
     .split(/,\s*/)
     .map((a) => a.replace(/[…]+$/, "").trim())
     .filter(Boolean);
-  const mid = parts.length >= 2 ? parts[1] : "";
+  // "저자 - dbpia.co.kr"처럼 두 칸뿐이면 가운데가 학술지가 아니라 사이트 주소일 수 있다
+  const mid = parts.length >= 2 && !(parts.length === 2 && /^[\w.-]+\.[a-z]{2,}$/i.test(parts[1])) ? parts[1] : "";
   const ym = mid.match(/(?:^|,\s*)((?:19|20)\d{2})\s*$/);
   const year = ym ? Number(ym[1]) : null;
   const venue = (ym ? mid.slice(0, ym.index) : mid).replace(/[…,\s]+$/, "").trim() || null;

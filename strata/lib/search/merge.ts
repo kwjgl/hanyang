@@ -58,13 +58,25 @@ export function mergeAndRank(lists: RankedList[]): Candidate[] {
   const alias = new Map<string, string>();
   const score = new Map<string, number>();
 
+  // 국내 학술지는 제목 앞에 "국어교육학 : " 같은 분야 머리말이 붙어 오기도 한다. 한쪽 제목이 다른 쪽 제목 끝과 같으면 같은 논문이다.
+  const titles: { key: string; year: number | null; id: string }[] = [];
+  const sameByPrefix = (k: string, year: number | null) => {
+    if (k.length < 15) return null;
+    for (const t of titles) {
+      if (t.key.length < 15 || (year && t.year && year !== t.year)) continue;
+      const [short, long] = k.length <= t.key.length ? [k, t.key] : [t.key, k];
+      if (long !== short && long.endsWith(short) && long.length - short.length <= 15) return t.id;
+    }
+    return null;
+  };
+
   const resolve = (c: Candidate) => {
     const tk = `t:${titleKey(c.title)}:${c.year ?? ""}`;
     const tkNoYear = `tn:${titleKey(c.title)}`;
     if (c.doi && alias.has(`doi:${c.doi}`)) return alias.get(`doi:${c.doi}`)!;
     if (alias.has(tk)) return alias.get(tk)!;
     if (alias.has(tkNoYear)) return alias.get(tkNoYear)!;
-    return null;
+    return sameByPrefix(titleKey(c.title), c.year);
   };
 
   for (const list of lists) {
@@ -76,6 +88,7 @@ export function mergeAndRank(lists: RankedList[]): Candidate[] {
       if (merged.doi) alias.set(`doi:${merged.doi}`, id);
       alias.set(`t:${titleKey(merged.title)}:${merged.year ?? ""}`, id);
       if (titleKey(merged.title).length >= 24) alias.set(`tn:${titleKey(merged.title)}`, id);
+      if (!existing) titles.push({ key: titleKey(merged.title), year: merged.year, id });
       score.set(id, (score.get(id) ?? 0) + (list.weight ?? 1) / (RRF_K + rank + 1));
     });
   }

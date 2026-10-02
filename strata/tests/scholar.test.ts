@@ -167,3 +167,73 @@ describe("요약 전 초록 채우기", () => {
     expect(out.authors).toEqual(["옥현진"]);
   });
 });
+
+describe("구글 연동 후 실제 비교 (디지털 읽기 평가)", () => {
+  const k = (title: string, over: Partial<Candidate> = {}): Candidate => ({
+    key: `t:${title}`,
+    doi: null,
+    title,
+    authors: [],
+    year: 2013,
+    venue: null,
+    abstract: null,
+    abstractSource: null,
+    citations: 0,
+    url: null,
+    oaUrl: null,
+    lang: null,
+    kind: "article",
+    ids: {},
+    sources: ["openalex"],
+    impact: {},
+    ...over,
+  });
+  const terms = ["디지털 읽기 평가"];
+
+  it("구글 상위 10편은 다른 출처에 함께 있어도 구글 순서 그대로", () => {
+    const g = (t: string, r: number, year = 2013) => k(t, { sources: ["scholar"], gsRank: r, year });
+    const lists = [
+      {
+        source: "scholar" as const,
+        term: terms[0],
+        weight: 1.5,
+        items: [
+          g("디지털 텍스트 읽기 능력과 디지털 텍스트 읽기 평가에 대한 일고찰", 1),
+          g("자동문항생성 기법을 활용한 읽기 평가 개발에 대한 시론", 2, 2022),
+          g("디지털 시대의 읽기 능력", 3, 2012),
+          g("PISA 2018 에 나타난 한국 학생들의 디지털 기기 활용 경향과 읽기 성취의 특성", 4, 2021),
+          g("국가수준 학업성취도 평가와 PISA 2009 (PRA 와 DRA) 연계를 통한 우리나라 학생들의 읽기 성취 특성 분석", 5),
+        ],
+      },
+      {
+        source: "openalex" as const,
+        term: terms[0],
+        weight: 1,
+        items: [
+          k("국가수준 학업성취도 평가와 PISA 2009(PRA와 DRA) 연계를 통한 우리나라 학생들의 읽기 성취 특성 분석", { abstract: "인쇄매체 읽기 평가(PRA)와 디지털 읽기 평가(DRA)의 결과를 둘 다 활용하여", citations: 2 }),
+          k("국어교육학 : 디지털 텍스트 읽기 능력과 디지털 텍스트 읽기 평가에 대한 일고찰", { abstract: "디지털 읽기 평가(Digital Reading Assessment)와 온라인 읽기 이해 평가" }),
+        ],
+      },
+    ];
+    const out = rerank(mergeAndRank(lists), terms, 2026);
+    expect(out.map((x) => x.gsRank)).toEqual([1, 2, 3, 4, 5]);
+    // 앞에 "국어교육학 : "이 붙은 같은 논문은 하나로 합쳐지고 초록을 얻는다
+    expect(out[0].abstract).toContain("Digital Reading Assessment");
+  });
+
+  it("영문 제목에 초록에서 흔한 낱말만 겹치는 무관한 국내 논문은, 제목이 맞는 국문 논문보다 아래", () => {
+    const out = rerank(
+      [
+        k("A Study on Cloud Network and Security System Analysis for Enhanced Security of Legislative Authority", { score: 0.02, citations: 5, abstract: "국회사무처의 정보보호컨설팅 결과 매우 낮게 평가 되었으며 보안평가기준에 따라 분석" }),
+        k("마킹 기능이 컴퓨터기반 읽기 평가의 결과 및 수험자의 인식에 미치는 영향", { score: 0.012, year: 2014, abstract: "컴퓨터 기반 읽기 평가의 타당도를 연구한 선행 연구에서 디지털 잉크 기능을 활용하여" }),
+      ],
+      terms,
+      2026,
+    );
+    expect(out[0].title).toMatch(/^마킹 기능/);
+  });
+
+  it("두 칸짜리 요약 줄의 사이트 주소는 학술지로 보지 않는다", () => {
+    expect(parseSummary("허은서, 이형민 - dbpia.co.kr")).toEqual({ authors: ["허은서", "이형민"], venue: null, year: null });
+  });
+});

@@ -56,7 +56,7 @@ export const EXPANSION_WEIGHT = 0.5;
  * - 해마다 받은 피인용 수 (오래 많이 인용된 고전이 위로)
  * - 한국어로 찾으면 한국어 논문을 위로
  * - 검색어 낱말이 제목·초록에 절반도 없으면 아래로
- * - 구글 학술검색 상위 결과는 구글 순서대로 위로
+ * - 구글 학술검색 상위 10편은 구글 순서 그대로 맨 앞에, 11~20위는 크게 올림
  * - 연구실 분야(교육·심리·언어)가 아닌 논문은 맨 뒤로
  * 원래 검색어가 AI가 넓힌 검색어보다 무겁다.
  */
@@ -81,14 +81,16 @@ export function rerank(items: Candidate[], terms: string[], now = new Date().get
       for (const s of sets) {
         const t = coverage(s.words, c.title);
         const a = coverage(s.words, c.abstract ?? c.snippet);
-        best = Math.max(best, t, a);
+        // 초록은 길어서 흔한 낱말(평가·디지털 등)이 우연히 들어 있기 쉽다. 초록만으로는 낱말이 다 있어야 맞는 것으로 본다.
+        best = Math.max(best, t, a === 1 ? 1 : a / 2);
         match = Math.max(match, s.weight * (t + 0.3 * a));
         phrase = Math.max(phrase, s.weight * (hasPhrase(s.phrases, c.title) ? 1 : hasPhrase(s.phrases, c.abstract ?? c.snippet) ? 0.2 : 0));
       }
       // 어느 검색어로 봐도 낱말의 절반도 제목·초록에 없으면, 출처가 느슨하게 걸러 온 것이다 (특히 한국어 검색)
       // 구글이 고른 논문은 낱말이 덜 맞아도 뜻이 맞는 경우가 많아 깎지 않는다
       const weak = !c.gsRank && sets.length && best < 0.5 ? 0.015 : 0;
-      const korean = koQuery && (hasHangul(c.title) || hasHangul(c.abstract ?? c.snippet)) ? 0.02 : 0;
+      // 제목이 한국어이거나, 초록이 한국어이면서 검색어가 잘 맞을 때만 (영문 제목의 무관한 국내 학회 논문은 올리지 않는다)
+      const korean = koQuery && (hasHangul(c.title) || (hasHangul(c.abstract ?? c.snippet) && best >= 0.5)) ? 0.02 : 0;
       const age = Math.max(1, now - (c.year ?? now) + 1);
       const perYear = (c.citations ?? 0) / age;
       // 다른 분야(의학·공학 등)로 판별된 논문은 맨 뒤로 보낸다. 화면에서는 기본으로 숨긴다.
@@ -98,5 +100,16 @@ export function rerank(items: Candidate[], terms: string[], now = new Date().get
       const score = (c.score ?? 0) + 0.016 * phrase + 0.016 * match + 0.005 * Math.min(3, Math.log10(1 + perYear)) + korean + google - weak - offDomain;
       return { ...c, score: Math.round(score * 10000) / 10000 };
     })
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    .sort(byGoogleThenScore);
+}
+
+/** 구글 상위 10편은 구글 순서 그대로 맨 앞에, 나머지는 점수 순 */
+const PIN = 10;
+function byGoogleThenScore(a: Candidate, b: Candidate) {
+  const pa = a.gsRank && a.gsRank <= PIN ? a.gsRank : null;
+  const pb = b.gsRank && b.gsRank <= PIN ? b.gsRank : null;
+  if (pa && pb) return pa - pb;
+  if (pa) return -1;
+  if (pb) return 1;
+  return (b.score ?? 0) - (a.score ?? 0);
 }
