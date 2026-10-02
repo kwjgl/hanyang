@@ -6,6 +6,8 @@ export interface RankedList {
   source: SourceId;
   term: string;
   items: Candidate[];
+  /** 이 목록의 무게 (원래 검색어·믿을 만한 출처일수록 크다). 기본 1 */
+  weight?: number;
 }
 
 const RRF_K = 60;
@@ -67,11 +69,11 @@ export function mergeAndRank(lists: RankedList[]): Candidate[] {
       if (merged.doi) alias.set(`doi:${merged.doi}`, id);
       alias.set(`t:${titleKey(merged.title)}:${merged.year ?? ""}`, id);
       if (titleKey(merged.title).length >= 24) alias.set(`tn:${titleKey(merged.title)}`, id);
-      score.set(id, (score.get(id) ?? 0) + 1 / (RRF_K + rank + 1));
+      score.set(id, (score.get(id) ?? 0) + (list.weight ?? 1) / (RRF_K + rank + 1));
     });
   }
 
   return [...byKey.entries()]
-    .map(([id, c]) => ({ ...c, score: Math.round((score.get(id) ?? 0) * 10000) / 10000 }))
+    .map(([id, c]) => ({ ...c, score: score.get(id) ?? 0 }))
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }
