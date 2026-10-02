@@ -1,4 +1,5 @@
 "use client";
+import type { KciTestRow } from "@/app/api/kci/test/route";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, errMsg, toast } from "@/lib/client";
@@ -161,7 +162,7 @@ export function SettingsView(props: {
 
       <section>
         <h2>분야 관리</h2>
-        <p className="sub">연구실 전체가 함께 쓰는 목록입니다. Claude가 분류할 때 이 목록과 설명을 보니, 설명을 구체적으로 쓸수록 정확해집니다.</p>
+        <p className="sub">연구실 전체가 함께 쓰는 목록입니다. AI가 분류할 때 이 목록과 설명을 보니, 설명을 구체적으로 쓸수록 정확해집니다.</p>
         {visible.map((f, i) => (
           <FieldRow key={f.id} f={f} count={props.fieldCounts[f.id] ?? 0} first={i === 0} prev={visible[i - 1]} onChange={() => router.refresh()} />
         ))}
@@ -187,7 +188,64 @@ export function SettingsView(props: {
           </span>
         </div>
       </section>
+
+      <KciSection />
     </div>
+  );
+}
+
+/** 국내 논문 검색(KCI) 연결 확인 */
+function KciSection() {
+  const [q, setQ] = useState("디지털 읽기 평가");
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<{ ready: boolean; rows: KciTestRow[] } | null>(null);
+  const run = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      setRes(await api<{ ready: boolean; rows: KciTestRow[] }>(`/api/kci/test?q=${encodeURIComponent(q)}`));
+    } catch (err) {
+      toast(errMsg(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section>
+      <h2>국내 논문 검색 (KCI)</h2>
+      <p className="sub">
+        공공데이터포털의 KCI 논문정보 서비스로 국내 학술지 논문을 제목으로 찾습니다. 관리자가 Vercel에 <code>KCI_SERVICE_KEY</code>를 넣으면 켜집니다.
+      </p>
+      <form className="line" onSubmit={run}>
+        <input type="text" value={q} onChange={(e) => setQ(e.target.value)} aria-label="KCI 확인용 검색어" />
+        <button className="btn" disabled={busy || !q.trim()}>
+          {busy ? "확인 중…" : "연결 확인"}
+        </button>
+      </form>
+      {res && !res.ready && (
+        <p className="warnbox" style={{ marginTop: 10 }}>
+          아직 KCI 인증키가 설정되지 않았습니다. Vercel → Settings → Environment Variables에 <code>KCI_SERVICE_KEY</code>를 넣고 Redeploy 해 주세요.
+        </p>
+      )}
+      {res?.rows.map((r) => (
+        <div key={r.query} style={{ marginTop: 12 }}>
+          <b style={{ fontSize: 13 }}>“{r.query}”</b>{" "}
+          {r.error ? (
+            <span style={{ color: "var(--warn)", fontSize: 13 }}>— {r.error}</span>
+          ) : (
+            <span className="meta">— 제목에 이 말이 들어간 논문 {r.total?.toLocaleString() ?? "?"}편</span>
+          )}
+          <ul className="mini-list" style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
+            {r.titles.map((t, i) => (
+              <li key={i}>
+                {t.title} {t.year ? `(${t.year})` : ""}
+                <span className="meta"> {t.abstract ? "· 초록 있음" : "· 초록 없음"}{t.doi ? " · DOI 있음" : ""}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
   );
 }
 

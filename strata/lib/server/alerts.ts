@@ -47,7 +47,8 @@ async function checkOne(supabase: Supa, s: SavedSearch): Promise<number> {
   const out = await runSearch(
     {
       terms: s.terms?.length ? s.terms : [s.query],
-      sources: s.filters?.sources?.length ? s.filters.sources : ["openalex", "s2", "eric", "crossref"],
+      // 예전에 저장한 검색에는 KCI가 없으니 함께 찾는다
+      sources: [...new Set<SourceId>([...(s.filters?.sources?.length ? s.filters.sources : (["openalex", "s2", "eric", "crossref"] as SourceId[])), "kci"])],
       scope: s.filters?.scope ?? "all",
       yearFrom: thisYear - 1,
     },

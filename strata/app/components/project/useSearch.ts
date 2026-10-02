@@ -41,7 +41,7 @@ export interface TrayItem {
 }
 
 export type Sort = "rel" | "imp" | "cite" | "new";
-export const ALL_SOURCES: SourceId[] = ["openalex", "s2", "eric", "crossref"];
+export const ALL_SOURCES: SourceId[] = ["openalex", "s2", "eric", "crossref", "kci"];
 
 /** 프로젝트 화면의 검색·요약 상태. 탭을 오가도 유지되도록 화면 최상단에서 한 번만 만든다. */
 export function useSearch(projectId: string, defaultQuery: string, initial?: SearchResult | null, initialRelated?: { title: string; results: Hit[] } | null) {

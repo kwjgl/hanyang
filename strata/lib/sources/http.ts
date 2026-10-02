@@ -34,6 +34,23 @@ export async function fetchJson<T>(source: string, url: string, init: RequestIni
   }
 }
 
+/** XML 등 글자로 받는 응답 */
+export async function fetchText(source: string, url: string, timeoutMs = 15_000): Promise<string> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": UA }, cache: "no-store" });
+    if (!res.ok) throw new SourceError(source, res.status === 429 ? "요청이 너무 많아 잠시 막혔습니다" : `응답 오류 ${res.status}`, res.status);
+    return await res.text();
+  } catch (e) {
+    if (e instanceof SourceError) throw e;
+    const aborted = e instanceof Error && e.name === "AbortError";
+    throw new SourceError(source, aborted ? "응답이 늦어 건너뛰었습니다" : "연결하지 못했습니다");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** 동시에 n개까지만 실행하고, 필요하면 호출 사이 간격을 둔다 */
 export function limiter(n: number, gapMs = 0) {
   let active = 0;

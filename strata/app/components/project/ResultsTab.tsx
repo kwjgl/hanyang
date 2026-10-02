@@ -108,14 +108,14 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
           ))}
         </span>
         <span className="lbl">출처</span>
-        {ALL_SOURCES.map((src: SourceId) => (
+        {ALL_SOURCES.filter((src) => src !== "kci" || data.kciReady).map((src: SourceId) => (
           <label className="src" key={src}>
             <input
               type="checkbox"
               checked={s.sources.includes(src)}
               onChange={(e) => s.setSources(e.target.checked ? [...s.sources, src] : s.sources.filter((x) => x !== src))}
             />{" "}
-            {src === "crossref" ? "Crossref (국내 학술지)" : SOURCE_LABEL[src]}
+            {src === "crossref" ? "Crossref (국내 학술지)" : src === "kci" ? "KCI (국내, 제목 검색)" : SOURCE_LABEL[src]}
           </label>
         ))}
         <span className="lbl">정렬</span>

@@ -1,5 +1,6 @@
-import { searchCrossref } from "@/lib/sources/crossref";
+import { crossrefByDoi, searchCrossref } from "@/lib/sources/crossref";
 import { searchEric } from "@/lib/sources/eric";
+import { kciKey, searchKci } from "@/lib/sources/kci";
 import { limiter, SourceError } from "@/lib/sources/http";
 import { searchOpenAlex } from "@/lib/sources/openalex";
 import { searchS2 } from "@/lib/sources/semanticscholar";
@@ -35,6 +36,7 @@ const lanes: Record<SourceId, ReturnType<typeof limiter>> = {
   openalex: limiter(4),
   eric: limiter(3),
   crossref: limiter(3),
+  kci: limiter(4),
   // Semantic Scholar는 키가 없으면 제한이 빡빡하다
   s2: limiter(1, process.env.S2_API_KEY ? 350 : 1100),
 };
@@ -51,8 +53,20 @@ interface Task {
  * 출처별 관련도 순위를 얼마나 믿을지.
  * Crossref는 낱말 하나만 맞아도 위로 올리는 편이라 낮게, 대신 국내 논문의 주 통로라 한국어 검색어에서는 조금 높게 둔다.
  */
-const SOURCE_WEIGHT: Record<SourceId, number> = { openalex: 1, s2: 1, eric: 0.8, crossref: 0.6 };
+const SOURCE_WEIGHT: Record<SourceId, number> = { openalex: 1, s2: 1, eric: 0.8, crossref: 0.6, kci: 0.8 };
 const KO_CROSSREF_WEIGHT = 0.85;
+
+/**
+ * KCI는 제목에 검색어가 그대로 들어간 논문만 돌려준다 (관련도 순서도 없다).
+ * 그래서 전체 검색어와 함께, 낱말이 세 개 이상이면 붙어 있는 두 낱말씩도 따로 묻는다.
+ * 예: "디지털 읽기 평가" → "디지털 읽기 평가", "디지털 읽기", "읽기 평가"
+ */
+export function kciQueries(term: string): { q: string; full: boolean }[] {
+  const words = term.split(/\s+/).filter(Boolean);
+  const out = [{ q: words.join(" "), full: true }];
+  if (words.length >= 3) for (let i = 0; i + 1 < words.length; i++) out.push({ q: `${words[i]} ${words[i + 1]}`, full: false });
+  return out.slice(0, 4);
+}
 
 /**
  * 어떤 검색어를 어떤 출처에 보낼지 정한다.
@@ -77,6 +91,12 @@ export function planTasks(input: SearchInput): Task[] {
       // 한국어 단어로 찾으면 이미 국문 논문만 걸린다. 언어 필터는 영문 초록만 등록된 국내 논문을 놓치게 해서 쓰지 않는다
       if (on("openalex")) tasks.push({ source: "openalex", term, weight: tw, run: () => searchOpenAlex(term, { yearFrom, yearTo, page }) });
       if (on("crossref")) tasks.push({ source: "crossref", term, weight: tw * KO_CROSSREF_WEIGHT, run: () => searchCrossref(term, { yearFrom, page }) });
+      if (on("kci") && kciKey())
+        for (const k of kciQueries(term)) {
+          if (seen.has(`kci|${k.q}`)) continue;
+          seen.add(`kci|${k.q}`);
+          tasks.push({ source: "kci", term: k.q, weight: tw * SOURCE_WEIGHT.kci * (k.full ? 1 : 0.6), run: () => searchKci(k.q, { page }) });
+        }
     } else {
       const w = (s: SourceId) => tw * SOURCE_WEIGHT[s];
       if (on("openalex")) tasks.push({ source: "openalex", term, weight: w("openalex"), run: () => searchOpenAlex(term, { yearFrom, yearTo, koreanOnly: scope === "ko", page }) });
@@ -105,6 +125,27 @@ async function retryOnce(run: () => Promise<SearchPage>, waitMs = 1500): Promise
     await new Promise((r) => setTimeout(r, waitMs));
     return run();
   }
+}
+
+/**
+ * KCI 응답에는 저자·학술지 이름이 없다. 상위 결과 중 KCI에서만 온 논문은 DOI로 Crossref에서 채운다.
+ * 오래 걸리면 기다리지 않고 넘어간다 (최대 8초).
+ */
+async function fillKciAuthors(items: Candidate[]) {
+  const need = items.filter((c) => c.sources.includes("kci") && !c.authors.length && c.doi).slice(0, 20);
+  if (!need.length) return;
+  const work = Promise.all(
+    need.map((c) =>
+      lanes.crossref(() => crossrefByDoi(c.doi!)).then((cr) => {
+        if (!cr) return;
+        c.authors = cr.authors;
+        c.venue = c.venue ?? cr.venue;
+        c.year = c.year ?? cr.year;
+        c.citations = c.citations ?? cr.citations;
+      }),
+    ),
+  ).catch(() => {});
+  await Promise.race([work, new Promise((r) => setTimeout(r, 8000))]);
 }
 
 export async function runSearch(input: SearchInput, maxResults = 500): Promise<SearchOutput> {
@@ -138,5 +179,6 @@ export async function runSearch(input: SearchInput, maxResults = 500): Promise<S
 
   const totalRaw = lists.reduce((n, l) => n + l.items.length, 0);
   const merged = applyScope(rerank(mergeAndRank(lists), input.terms), input.scope);
+  await fillKciAuthors(merged.slice(0, 60));
   return { results: merged.slice(0, maxResults), totalRaw, totalUnique: merged.length, perSource, available, hasMore, warnings: [...warnings] };
 }

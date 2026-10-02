@@ -1,4 +1,4 @@
-export type SourceId = "openalex" | "s2" | "eric" | "crossref";
+export type SourceId = "openalex" | "s2" | "eric" | "crossref" | "kci";
 export type Scope = "all" | "ko" | "intl";
 
 export const SOURCE_LABEL: Record<SourceId, string> = {
@@ -6,6 +6,7 @@ export const SOURCE_LABEL: Record<SourceId, string> = {
   s2: "Semantic Scholar",
   eric: "ERIC",
   crossref: "Crossref",
+  kci: "KCI",
 };
 
 export interface Impact {
