@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { citationGraph } from "@/lib/citations";
 import { countBy, tierCounts, weeklyCounts, yearBins } from "@/lib/dashboard";
+import { forceLayout, type GNode, nodeLabel, timelineLayout, visibleGraph } from "@/lib/graph";
 import { openAlexWorks } from "@/lib/sources/openalex";
 
 describe("citationGraph", () => {
@@ -108,5 +109,55 @@ describe("openAlexWorks", () => {
     expect(new URL(urls[0]).searchParams.get("select")).toContain("referenced_works");
     expect(out[0].refs).toEqual(["W9"]);
     expect(out[0].candidate.ids.openalex).toBe("W1");
+  });
+});
+
+describe("관계도 배치", () => {
+  const node = (id: string, year: number | null, lane = "A"): GNode => ({ id, title: id, authors: ["Anne Mangen"], year, citations: 10, cand: false, lane, x: 0, y: 0 });
+
+  it("이름표는 첫 저자 성 + 연도, 한글 이름은 그대로", () => {
+    expect(nodeLabel({ authors: ["Anne Mangen"], year: 2013 })).toBe("Mangen 2013");
+    expect(nodeLabel({ authors: ["김 민지"], year: 2020 })).toBe("김민지 2020");
+    expect(nodeLabel({ authors: [], year: null })).toBe("저자 미상");
+  });
+
+  it("연결 없는 논문은 기본으로 숨기고, 없는 노드로 가는 선과 중복 선은 뺀다", () => {
+    const nodes = [node("a", 2000), node("b", 2001), node("c", 2002)];
+    const links = [
+      { from: "a", to: "b" },
+      { from: "a", to: "b" },
+      { from: "a", to: "zz" },
+    ];
+    const g = visibleGraph(nodes, links, false);
+    expect(g.nodes.map((n) => n.id)).toEqual(["a", "b"]);
+    expect(g.edges).toEqual([{ a: "a", b: "b" }]);
+    expect(visibleGraph(nodes, links, true).nodes).toHaveLength(3);
+  });
+
+  it("힘 배치는 화면 안에 놓고, 같은 입력이면 같은 결과를 낸다", () => {
+    const make = () => [node("a", 2000), node("b", 2001), node("c", 2002)];
+    const e = [{ a: "a", b: "b" }];
+    const n1 = make();
+    const n2 = make();
+    forceLayout(n1, e, 900, 520);
+    forceLayout(n2, e, 900, 520);
+    expect(n1.map((n) => [n.x, n.y])).toEqual(n2.map((n) => [n.x, n.y]));
+    for (const n of n1) {
+      expect(n.x).toBeGreaterThanOrEqual(40);
+      expect(n.x).toBeLessThanOrEqual(750);
+      expect(n.y).toBeGreaterThanOrEqual(30);
+      expect(n.y).toBeLessThanOrEqual(490);
+    }
+  });
+
+  it("연도 계보: 연도 순으로 왼쪽→오른쪽, 이름표가 겹치면 아래 칸으로", () => {
+    const nodes = [node("old", 1990), node("new", 2020), node("near", 2021), node("other", 2000, "B")];
+    const t = timelineLayout(nodes, ["A", "B", "C"], 900);
+    const [old, nw, near, other] = nodes;
+    expect(old.x).toBeLessThan(nw.x);
+    expect(near.y).toBeGreaterThan(nw.y);
+    expect(t.lanes.map((l) => l.name)).toEqual(["A", "B"]);
+    expect(other.y).toBeGreaterThan(t.lanes[1].top);
+    expect(t.ticks[0].label).toBe("1990");
   });
 });

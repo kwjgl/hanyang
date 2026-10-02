@@ -4,6 +4,7 @@ import type { ProjectData } from "@/lib/server/load";
 import { Avatar, FieldTags } from "../bits";
 import { CompareTab } from "./CompareTab";
 import { DashboardTab } from "./DashboardTab";
+import { GraphTab } from "./GraphTab";
 import { ProjectEditor } from "./ProjectEditor";
 import { ResultsTab } from "./ResultsTab";
 import { SharePanel } from "./SharePanel";
@@ -13,7 +14,7 @@ import { useSearch, type SearchResult } from "./useSearch";
 export function ProjectView({ data, initialResult }: { data: ProjectData; initialResult?: SearchResult | null }) {
   const { project, role, members, fields, rows } = data;
   const s = useSearch(project.id, project.default_query, initialResult);
-  const [tab, setTab] = useState<"results" | "table" | "dash">(initialResult || !rows.length ? "results" : "table");
+  const [tab, setTab] = useState<"results" | "table" | "dash" | "graph">(initialResult || !rows.length ? "results" : "table");
   const cites = useCitations(
     project.id,
     rows.map((r) => r.paper.id),
@@ -96,6 +97,9 @@ export function ProjectView({ data, initialResult }: { data: ProjectData; initia
         <button className="ptab" role="tab" aria-selected={tab === "dash"} onClick={() => setTab("dash")}>
           대시보드
         </button>
+        <button className="ptab" role="tab" aria-selected={tab === "graph"} onClick={() => setTab("graph")}>
+          관계도
+        </button>
       </div>
       <div hidden={tab !== "results"}>
         <ResultsTab s={s} data={data} />
@@ -112,6 +116,7 @@ export function ProjectView({ data, initialResult }: { data: ProjectData; initia
         />
       </div>
       <div hidden={tab !== "dash"}>{tab === "dash" && <DashboardTab data={data} cites={cites} onShowCore={showCore} />}</div>
+      <div hidden={tab !== "graph"}>{tab === "graph" && <GraphTab data={data} cites={cites} onShowCore={showCore} />}</div>
     </>
   );
 }
