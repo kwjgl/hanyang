@@ -43,6 +43,8 @@ function mergeInto(a: Candidate, b: Candidate): Candidate {
     },
     eduLevel: a.eduLevel ?? b.eduLevel,
     domain: mergeDomain(a.domain, b.domain),
+    snippet: a.snippet ?? b.snippet ?? null,
+    gsRank: Math.min(a.gsRank ?? Infinity, b.gsRank ?? Infinity) === Infinity ? undefined : Math.min(a.gsRank ?? Infinity, b.gsRank ?? Infinity),
   };
 }
 

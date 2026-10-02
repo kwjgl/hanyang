@@ -119,6 +119,7 @@ export const previewProject: ProjectData = {
   role: "owner",
   meId: "me",
   kciReady: true,
+  scholarReady: true,
   members: [
     { user_id: "me", role: "owner", name: "나", email: "me@lab.kr" },
     { user_id: "u2", role: "editor", name: "김민지", email: "minji@lab.kr" },

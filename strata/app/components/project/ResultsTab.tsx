@@ -109,14 +109,14 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
           ))}
         </span>
         <span className="lbl">출처</span>
-        {ALL_SOURCES.filter((src) => src !== "kci" || (data.kciReady && KCI_IN_SEARCH)).map((src: SourceId) => (
+        {ALL_SOURCES.filter((src) => (src !== "kci" || (data.kciReady && KCI_IN_SEARCH)) && (src !== "scholar" || data.scholarReady)).map((src: SourceId) => (
           <label className="src" key={src}>
             <input
               type="checkbox"
               checked={s.sources.includes(src)}
               onChange={(e) => s.setSources(e.target.checked ? [...s.sources, src] : s.sources.filter((x) => x !== src))}
             />{" "}
-            {src === "crossref" ? "Crossref (국내 학술지)" : src === "kci" ? "KCI (국내, 제목 검색)" : SOURCE_LABEL[src]}
+            {src === "crossref" ? "Crossref (국내 학술지)" : src === "kci" ? "KCI (국내, 제목 검색)" : src === "scholar" ? "구글 학술검색 (검색 1번에 1회)" : SOURCE_LABEL[src]}
           </label>
         ))}
         <span className="lbl">정렬</span>
@@ -422,6 +422,12 @@ function ResultRow(props: {
         {c.abstract ? (
           <p className="ab" style={props.absOpen ? undefined : { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
             {c.abstract}{" "}
+          </p>
+        ) : c.snippet ? (
+          <p className="ab">
+            <span className="meta">구글 발췌 · </span>
+            {c.snippet}
+            <span className="meta"> (초록은 요약할 때 다른 출처에서 찾아봅니다)</span>
           </p>
         ) : (
           <p className="ab">초록 없음 · 요약할 때 다른 출처에서 다시 찾아봅니다</p>

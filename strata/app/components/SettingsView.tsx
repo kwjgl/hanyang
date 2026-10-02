@@ -189,8 +189,41 @@ export function SettingsView(props: {
         </div>
       </section>
 
+      <ScholarSection />
+
       <KciSection />
     </div>
+  );
+}
+
+/** 구글 학술검색(SerpApi) 연결 상태와 이번 달 남은 횟수 */
+function ScholarSection() {
+  const [st, setSt] = useState<{ ready: boolean; ok?: boolean; left?: number | null; used?: number | null; limit?: number | null; error?: string } | null>(null);
+  useEffect(() => {
+    api<typeof st>("/api/scholar/status").then(setSt).catch(() => setSt(null));
+  }, []);
+  return (
+    <section>
+      <h2>구글 학술검색 연동</h2>
+      <p className="sub">
+        검색할 때 구글 학술검색 상위 20편을 함께 가져와 맨 위에 섞습니다 (SerpApi 경유). 검색 한 번에 1회를 쓰며, 같은 검색을 1시간 안에 다시 하면 세지 않습니다. 새 논문 알림에는 쓰지 않습니다.
+      </p>
+      {!st ? (
+        <p className="meta">확인하는 중…</p>
+      ) : !st.ready ? (
+        <p className="warnbox">
+          아직 연결되지 않았습니다. 관리자가 <a href="https://serpapi.com" target="_blank" rel="noreferrer">SerpApi</a>에 가입해 받은 키를 Vercel 환경 변수 <code>SERPAPI_KEY</code>에 넣고 Redeploy 하면 켜집니다.
+        </p>
+      ) : st.ok ? (
+        <p>
+          연결됨 · 이번 달 남은 횟수 <b>{st.left?.toLocaleString() ?? "?"}</b>
+          {st.limit ? ` / ${st.limit.toLocaleString()}` : ""}
+          {st.used != null ? <span className="meta"> (이번 달 {st.used.toLocaleString()}회 사용, 연구실 전체 합계)</span> : null}
+        </p>
+      ) : (
+        <p className="warnbox">키는 있지만 확인하지 못했습니다: {st.error}. 키를 다시 복사해 넣어 주세요.</p>
+      )}
+    </section>
   );
 }
 

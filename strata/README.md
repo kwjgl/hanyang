@@ -12,8 +12,8 @@
 | 로그인 | 이메일 + 비밀번호. 계정은 관리자가 Supabase에서 만들어 줌. 설정에서 비밀번호 변경 |
 | 프로젝트 | 이름 · 연구 질문 · 분야 · 소주제. 편집 · 삭제 |
 | 공유 | 이메일로 초대(편집 가능 / 보기만). 아직 가입하지 않은 사람은 가입하는 순간 자동으로 멤버가 됨 |
-| 검색 | OpenAlex · Semantic Scholar · ERIC · Crossref(국내 학술지). Claude가 한국어·영어 검색어로 넓힘. 범위(전체/국내/해외), 정렬(관련도·영향력·피인용·최신), 상위 10%·리뷰만 |
-| 국내 논문 | KCI(공공데이터포털, 제목 검색·국문 초록) · Crossref·OpenAlex로 자동 검색 + KCI · RISS · DBpia · Google 학술검색으로 바로 가는 링크 + DOI·주소 붙여넣기 / 직접 입력 |
+| 검색 | 구글 학술검색(선택, SerpApi) · OpenAlex · Semantic Scholar · ERIC · Crossref(국내 학술지). Claude가 한국어·영어 검색어로 넓힘. 범위(전체/국내/해외), 정렬(관련도·영향력·피인용·최신), 상위 10%·리뷰만 |
+| 국내 논문 | 구글 학술검색(선택) · Crossref·OpenAlex로 자동 검색 + KCI · RISS · DBpia · Google 학술검색으로 바로 가는 링크 + DOI·주소 붙여넣기 / 직접 입력 |
 | 인용 추적 | 이 논문을 인용한 논문 · 참고문헌 · 비슷한 논문 |
 | 검색 기록 | 30일 보관, 다시 검색하지 않고 열기. “이 검색 저장”하면 계속 보관 |
 | 요약 | 고른 논문만 요약 (Claude · Gemini · ChatGPT 중 각자 선택). 같은 논문은 누가 만든 요약이든 재사용. 분야·연구 유형·대상 학교급을 같은 호출에서 분류 |
@@ -56,7 +56,8 @@ Strata는 인터넷 주소로 여는 웹 앱이라 설치할 것이 없습니다
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL (`https://xxxx.supabase.co`) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase Publishable key (`sb_publishable_…`) 또는 anon public 키 |
 | `API_KEY_ENCRYPTION_SECRET` | 32자 이상 무작위 문자열. **한 번 정하면 바꾸지 않습니다** |
-| `KCI_SERVICE_KEY` (선택) | 공공데이터포털 [한국연구재단_KCI 논문정보서비스](https://www.data.go.kr/data/15085348/openapi.do) 일반 인증키(Decoding). 넣으면 국내 논문을 KCI에서 제목으로 찾고 국문 초록을 가져옵니다. 설정 화면의 **KCI 연결 확인**으로 점검 |
+| `SERPAPI_KEY` (선택) | [SerpApi](https://serpapi.com) 키. 넣으면 검색할 때 **구글 학술검색 상위 20편**을 함께 가져와 구글 순서대로 맨 위에 둡니다. 검색 1번에 1회 (무료 월 250회, 연구실 합계). 설정 화면에 남은 횟수 표시. 새 논문 알림에는 쓰지 않음 |
+| `KCI_SERVICE_KEY` (선택) | 공공데이터포털 [한국연구재단_KCI 논문정보서비스](https://www.data.go.kr/data/15085348/openapi.do) 일반 인증키(Decoding). 연결은 되지만 제목 검색이 20초 넘게 걸리고 제목 일부로는 찾지 못해, 지금은 검색에 쓰지 않습니다 (설정 화면의 **KCI 연결 확인**으로 점검만 가능) |
 
 3. Supabase **Authentication → URL Configuration**의 Site URL에 앱 주소를 넣습니다.
 4. 설정이 잘못되면 앱이 오류 대신 **설정 점검** 화면(`/setup`)을 띄워 어떤 값이 틀렸는지 알려 줍니다. 값을 고친 뒤에는 Vercel **Deployments → ⋯ → Redeploy**를 눌러야 반영됩니다.

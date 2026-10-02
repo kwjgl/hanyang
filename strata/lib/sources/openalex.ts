@@ -175,3 +175,19 @@ export async function openAlexYearCounts(term: string, from: number, to: number)
   }
   return { counts, total: data.meta?.count ?? counts.reduce((a, b) => a + b, 0) };
 }
+
+/** 제목(과 연도)이 같은 논문을 찾는다. 구글 학술검색처럼 DOI·초록 없이 온 결과를 채울 때 쓴다. */
+export async function openAlexByTitle(title: string, year: number | null): Promise<Candidate | null> {
+  const params = withAuth(new URLSearchParams({ search: title.slice(0, 300), "per-page": "5", select: SELECT }));
+  try {
+    const data = await fetchJson<{ results: OpenAlexWork[] }>("OpenAlex", `${BASE}/works?${params}`, {}, 10_000);
+    const want = titleKey(title);
+    return (
+      (data.results ?? [])
+        .map(parseOpenAlexWork)
+        .find((c): c is Candidate => !!c && titleKey(c.title) === want && (!year || !c.year || Math.abs(c.year - year) <= 1)) ?? null
+    );
+  } catch {
+    return null;
+  }
+}

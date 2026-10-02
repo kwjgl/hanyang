@@ -3,6 +3,7 @@ import { searchEric } from "@/lib/sources/eric";
 import { kciKey, searchKci } from "@/lib/sources/kci";
 import { limiter, SourceError } from "@/lib/sources/http";
 import { searchOpenAlex } from "@/lib/sources/openalex";
+import { searchScholar, serpKey } from "@/lib/sources/scholar";
 import { searchS2 } from "@/lib/sources/semanticscholar";
 import { hasHangul, stripKoreanParticles } from "@/lib/text";
 import type { Candidate, Scope, SearchPage, SourceId } from "@/lib/types";
@@ -38,6 +39,7 @@ const lanes: Record<SourceId, ReturnType<typeof limiter>> = {
   eric: limiter(3),
   crossref: limiter(3),
   kci: limiter(4),
+  scholar: limiter(2),
   // Semantic Scholar는 키가 없으면 제한이 빡빡하다
   s2: limiter(1, process.env.S2_API_KEY ? 350 : 1100),
 };
@@ -54,7 +56,8 @@ interface Task {
  * 출처별 관련도 순위를 얼마나 믿을지.
  * Crossref는 낱말 하나만 맞아도 위로 올리는 편이라 낮게, 대신 국내 논문의 주 통로라 한국어 검색어에서는 조금 높게 둔다.
  */
-const SOURCE_WEIGHT: Record<SourceId, number> = { openalex: 1, s2: 1, eric: 0.8, crossref: 0.6, kci: 0.8 };
+// 구글 학술검색 순위가 가장 믿을 만하다 (원래 검색어로만 묻는다)
+const SOURCE_WEIGHT: Record<SourceId, number> = { openalex: 1, s2: 1, eric: 0.8, crossref: 0.6, kci: 0.8, scholar: 1.5 };
 const KO_CROSSREF_WEIGHT = 0.85;
 
 /**
@@ -82,6 +85,9 @@ export function planTasks(input: SearchInput): Task[] {
   const seen = new Set<string>();
   for (const [i, raw] of terms.entries()) {
     const tw = i === 0 ? 1 : EXPANSION_WEIGHT;
+    // 구글 학술검색은 횟수 제한(무료 월 250회)이 있어 사용자가 친 검색어 하나만 묻는다
+    if (i === 0 && on("scholar") && serpKey() && raw.trim())
+      tasks.push({ source: "scholar", term: raw.trim(), weight: SOURCE_WEIGHT.scholar, run: () => searchScholar(raw.trim(), { yearFrom, yearTo, page }) });
     const ko = hasHangul(raw);
     // 한국어는 조사를 떼어야 제목·키워드와 맞는다
     const term = ko ? stripKoreanParticles(raw) : raw.trim();

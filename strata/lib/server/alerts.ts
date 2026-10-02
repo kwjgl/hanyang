@@ -47,8 +47,8 @@ async function checkOne(supabase: Supa, s: SavedSearch): Promise<number> {
   const out = await runSearch(
     {
       terms: s.terms?.length ? s.terms : [s.query],
-      // 예전에 저장한 검색에는 KCI가 없으니 함께 찾는다
-      sources: [...new Set<SourceId>([...(s.filters?.sources?.length ? s.filters.sources : (["openalex", "s2", "eric", "crossref"] as SourceId[])), "kci"])],
+      // 예전에 저장한 검색에는 KCI가 없으니 함께 찾는다. 구글 학술검색은 횟수 제한이 있어 알림에는 쓰지 않는다.
+      sources: [...new Set<SourceId>([...(s.filters?.sources?.length ? s.filters.sources : (["openalex", "s2", "eric", "crossref"] as SourceId[])), "kci"])].filter((x) => x !== "scholar"),
       scope: s.filters?.scope ?? "all",
       yearFrom: thisYear - 1,
     },

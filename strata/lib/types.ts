@@ -1,4 +1,4 @@
-export type SourceId = "openalex" | "s2" | "eric" | "crossref" | "kci";
+export type SourceId = "openalex" | "s2" | "eric" | "crossref" | "kci" | "scholar";
 export type Scope = "all" | "ko" | "intl";
 
 export const SOURCE_LABEL: Record<SourceId, string> = {
@@ -7,6 +7,7 @@ export const SOURCE_LABEL: Record<SourceId, string> = {
   eric: "ERIC",
   crossref: "Crossref",
   kci: "KCI",
+  scholar: "구글 학술검색",
 };
 
 export interface Impact {
@@ -38,6 +39,10 @@ export interface Candidate {
   impact: Impact;
   eduLevel?: string[];
   score?: number;
+  /** 구글 학술검색이 보여 준 짧은 발췌 (초록이 아니다) */
+  snippet?: string | null;
+  /** 구글 학술검색 순위 (1부터) */
+  gsRank?: number;
   /** 연구실 분야(교육·심리·언어)인지: "in" · "out" · 모름(null) */
   domain?: "in" | "out" | null;
 }

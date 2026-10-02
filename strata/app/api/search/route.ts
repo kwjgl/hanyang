@@ -6,10 +6,10 @@ import { body, HttpError, json, route } from "@/lib/server/api";
 import { annotate } from "@/lib/server/membership";
 import type { Candidate, Scope, SourceId } from "@/lib/types";
 
-const ALL: SourceId[] = ["openalex", "s2", "eric", "crossref", "kci"];
+const ALL: SourceId[] = ["scholar", "openalex", "s2", "eric", "crossref", "kci"];
 
 /** 검색 기록에는 목록을 다시 열 수 있을 만큼만 남긴다 (초록은 앞부분만) */
-const compact = (c: Candidate): Candidate => ({ ...c, abstract: c.abstract ? c.abstract.slice(0, 1500) : null });
+const compact = (c: Candidate): Candidate => ({ ...c, abstract: c.abstract ? c.abstract.slice(0, 1500) : null, snippet: c.snippet ? c.snippet.slice(0, 400) : c.snippet });
 
 export const POST = route(async ({ req, supabase, userId }) => {
   const b = await body<{ projectId: string; query: string; terms?: string[]; sources?: SourceId[]; scope?: Scope; yearFrom?: number; yearTo?: number; page?: number; searchId?: string | null }>(req);

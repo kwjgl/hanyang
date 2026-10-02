@@ -3,6 +3,7 @@ import type { Field, ProjectRole, ReadStatus, SummaryData } from "@/lib/types";
 import { monthUsage } from "./ai";
 import { unreadAlerts } from "./alerts";
 import { kciKey } from "@/lib/sources/kci";
+import { serpKey } from "@/lib/sources/scholar";
 import type { PaperRow } from "./papers";
 
 export interface ShellProject {
@@ -98,6 +99,8 @@ export interface ProjectData {
   meId: string;
   /** KCI 인증키가 설정되어 있는지 (검색 출처에 KCI를 보여 줄지) */
   kciReady: boolean;
+  /** 구글 학술검색(SerpApi) 키가 설정되어 있는지 */
+  scholarReady: boolean;
 }
 
 type PPRow = {
@@ -147,6 +150,7 @@ export async function loadProject(supabase: Supa, userId: string, id: string): P
     fields: (fields ?? []) as Field[],
     meId: userId,
     kciReady: !!kciKey(),
+    scholarReady: !!serpKey(),
     rows: rowsRaw.map((r) => {
       const { summaries, paper_fields, ...paper } = r.paper!;
       const u = up.get(r.paper_id);
