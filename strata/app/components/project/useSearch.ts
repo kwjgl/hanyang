@@ -44,7 +44,7 @@ export type Sort = "rel" | "imp" | "cite" | "new";
 export const ALL_SOURCES: SourceId[] = ["openalex", "s2", "eric", "crossref"];
 
 /** 프로젝트 화면의 검색·요약 상태. 탭을 오가도 유지되도록 화면 최상단에서 한 번만 만든다. */
-export function useSearch(projectId: string, defaultQuery: string, initial?: SearchResult | null) {
+export function useSearch(projectId: string, defaultQuery: string, initial?: SearchResult | null, initialRelated?: { title: string; results: Hit[] } | null) {
   const router = useRouter();
   const [query, setQuery] = useState(defaultQuery);
   const [chips, setChips] = useState<{ text: string; on: boolean }[]>(
@@ -58,7 +58,7 @@ export function useSearch(projectId: string, defaultQuery: string, initial?: Sea
   /** 검색어 확장을 못 했을 때 그 이유 (결과 위에 계속 보여준다) */
   const [expandError, setExpandError] = useState<string | null>(null);
   const [result, setResult] = useState<SearchResult | null>(initial ?? null);
-  const [related, setRelated] = useState<{ title: string; results: Hit[] } | null>(null);
+  const [related, setRelated] = useState<{ title: string; results: Hit[] } | null>(initialRelated ?? null);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [tray, setTray] = useState<TrayItem[]>([]);
   const running = useRef(0);
@@ -151,7 +151,7 @@ export function useSearch(projectId: string, defaultQuery: string, initial?: Sea
     try {
       await api(`/api/searches/${result.searchId}`, { method: "PATCH", body: { saved } });
       setResult({ ...result, saved });
-      toast(saved ? "검색을 저장했습니다. 기간 제한 없이 남습니다" : "저장을 취소했습니다");
+      toast(saved ? "검색을 저장했습니다. 매주 새 논문을 확인해 ‘새 논문 알림’에 알려 드립니다" : "저장을 취소했습니다. 새 논문 알림도 멈춥니다");
     } catch (e) {
       toast(errMsg(e));
     }

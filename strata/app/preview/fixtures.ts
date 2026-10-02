@@ -1,4 +1,5 @@
 // 미리보기용 예시 데이터. 실제 논문 서지 정보에 예시 요약을 붙였다 (피인용 수·지표는 대략값).
+import type { AlertSearch } from "@/lib/server/alerts";
 import type { SearchResult } from "@/app/components/project/useSearch";
 import type { ProjectData, ShellData, TableRow } from "@/lib/server/load";
 import type { PaperRow } from "@/lib/server/papers";
@@ -279,4 +280,32 @@ export const previewShell: ShellData = {
   lib: { all: 9, todo: 5, recent: 4, star: 2 },
   fields: fields.map((f, i) => ({ ...f, count: [2, 1, 1, 3, 4, 3, 2][i] })),
   monthUsage: 1.12,
+  alerts: 3,
 };
+
+const day = (n: number) => new Date(Date.now() - n * 864e5).toISOString();
+
+export const previewAlerts: AlertSearch[] = [
+  {
+    id: "s1",
+    projectId: "preview",
+    projectName: "학위논문 · 디지털 읽기 평가",
+    query: "paper vs. screen reading",
+    checkedAt: day(2),
+    createdAt: day(40),
+    canEdit: true,
+    readAt: day(10),
+    hits: previewResult.results.slice(0, 3).map((paper, i) => ({ id: `h${i}`, paper: { ...paper, year: 2026 }, foundAt: day(2) })),
+  },
+  {
+    id: "s2",
+    projectId: "x",
+    projectName: "학회 발표 · LLM 문항 생성",
+    query: "LLM item generation",
+    checkedAt: null,
+    createdAt: day(3),
+    canEdit: false,
+    readAt: null,
+    hits: [],
+  },
+];

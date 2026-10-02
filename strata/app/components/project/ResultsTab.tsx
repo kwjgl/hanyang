@@ -223,7 +223,7 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
             </div>
           ))}
           <p className="hint">
-            검색 기록은 30일 동안 남아서 다시 검색하지 않고 열어볼 수 있습니다. <b>이 검색 저장</b>을 누르면 기간 제한 없이 남습니다.
+            검색 기록은 30일 동안 남아서 다시 검색하지 않고 열어볼 수 있습니다. <b>이 검색 저장</b>을 누르면 기간 제한 없이 남고, 매주 새로 나온 논문을 사이드바 <b>새 논문 알림</b>에 알려 드립니다.
           </p>
         </section>
       )}

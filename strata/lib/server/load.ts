@@ -1,6 +1,7 @@
 import type { Supa } from "@/lib/supabase/server";
 import type { Field, ProjectRole, ReadStatus, SummaryData } from "@/lib/types";
 import { monthUsage } from "./ai";
+import { unreadAlerts } from "./alerts";
 import type { PaperRow } from "./papers";
 
 export interface ShellProject {
@@ -17,18 +18,21 @@ export interface ShellData {
   lib: { all: number; todo: number; recent: number; star: number };
   fields: (Field & { count: number })[];
   monthUsage: number;
+  /** 안 본 새 논문 알림 수. 알림 SQL을 아직 실행하지 않았으면 null */
+  alerts: number | null;
 }
 
 type ProjRow = { id: string; name: string; created_by: string; project_members: { user_id: string; role: ProjectRole }[]; project_papers: { count: number }[] };
 
 export async function loadShell(supabase: Supa, userId: string): Promise<ShellData> {
-  const [{ data: me }, { data: projs }, { data: pp }, { data: ups }, { data: fields }, usage] = await Promise.all([
+  const [{ data: me }, { data: projs }, { data: pp }, { data: ups }, { data: fields }, usage, alerts] = await Promise.all([
     supabase.from("profiles").select("display_name, email").eq("id", userId).maybeSingle(),
     supabase.from("projects").select("id, name, created_by, project_members(user_id, role), project_papers(count)").order("created_at"),
     supabase.from("project_papers").select("paper_id, added_at, paper:papers(paper_fields(field_id))").limit(5000),
     supabase.from("user_papers").select("paper_id, status, starred").eq("user_id", userId),
     supabase.from("fields").select("*").order("position"),
     monthUsage(supabase, userId),
+    unreadAlerts(supabase, userId).catch(() => null),
   ]);
 
   const papers = new Map<string, { addedAt: string; fieldIds: string[] }>();
@@ -55,6 +59,7 @@ export async function loadShell(supabase: Supa, userId: string): Promise<ShellDa
     },
     fields: ((fields ?? []) as Field[]).filter((f) => !f.hidden).map((f) => ({ ...f, count: ids.filter((i) => papers.get(i)!.fieldIds.includes(f.id)).length })),
     monthUsage: usage.used,
+    alerts,
   };
 }
 

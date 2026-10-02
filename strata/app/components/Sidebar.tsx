@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ShellData } from "@/lib/server/load";
 
@@ -10,7 +10,22 @@ const DEFAULT_OPEN: Record<Sec, boolean> = { mine: true, shared: true, lib: true
 export function Sidebar({ data }: { data: ShellData }) {
   const path = usePathname();
   const sp = useSearchParams();
+  const router = useRouter();
   const [open, setOpen] = useState(DEFAULT_OPEN);
+  // 앱을 열면 일주일이 지난 저장 검색을 조용히 다시 확인한다 (창을 열 때 한 번)
+  useEffect(() => {
+    if (data.alerts == null) return;
+    try {
+      if (sessionStorage.getItem("strata-alert-check")) return;
+      sessionStorage.setItem("strata-alert-check", "1");
+    } catch {}
+    fetch("/api/alerts/check", { method: "POST" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((r: { found?: number } | null) => {
+        if (r?.found) router.refresh();
+      })
+      .catch(() => {});
+  }, [data.alerts, router]);
   useEffect(() => {
     try {
       setOpen({ ...DEFAULT_OPEN, ...JSON.parse(localStorage.getItem("strata-sec") ?? "{}") });
@@ -82,6 +97,12 @@ export function Sidebar({ data }: { data: ShellData }) {
           {libItem("todo", "읽을 것", data.lib.todo)}
           {libItem("recent", "최근 2주 보관", data.lib.recent)}
           {libItem("star", "별표", data.lib.star)}
+          <li>
+            <Link href="/alerts" aria-current={path === "/alerts" ? "page" : undefined} className="navlink">
+              <span>새 논문 알림</span>
+              {data.alerts ? <span className="newcnt">{data.alerts}</span> : <span className="c">{data.alerts == null ? "" : 0}</span>}
+            </Link>
+          </li>
         </ul>
       </div>
       <div className="sec-hide">

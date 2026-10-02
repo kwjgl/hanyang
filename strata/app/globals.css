@@ -393,3 +393,4 @@ a.acct[aria-current="page"]{box-shadow:0 0 0 2px var(--accent-soft)}
 .nd-list .meta{color:var(--muted)}
 .chip[aria-pressed="true"]{background:var(--accent-soft);border-color:transparent;color:var(--ink)}
 .chip[aria-pressed="false"]{color:var(--muted)}
+.alert-n{font-family:var(--f-mono);font-size:12px;background:var(--info);color:var(--surface);border-radius:999px;padding:1px 8px}

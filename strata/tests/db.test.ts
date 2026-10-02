@@ -33,6 +33,9 @@ beforeAll(async () => {
     grant execute on function auth.uid() to authenticated;
   `);
   await db.exec(readFileSync("supabase/migrations/20261001000000_init.sql", "utf8"));
+  // 알림 마이그레이션은 두 번 실행해도 괜찮아야 한다 (사용자가 다시 붙여 넣을 수 있다)
+  await db.exec(readFileSync("supabase/migrations/20261003000000_alerts.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261003000000_alerts.sql", "utf8"));
   await db.exec(`
     insert into auth.users (id, email, raw_user_meta_data) values
       ('${A}', 'a@lab.kr', '{"full_name":"김에이"}'), ('${B}', 'b@lab.kr', '{}');
@@ -40,6 +43,11 @@ beforeAll(async () => {
 }, 60_000);
 
 describe("schema", () => {
+  it("shows the same alerts SQL in the app as the migration file", async () => {
+    const { ALERTS_SQL } = await import("@/lib/alerts-sql");
+    expect(ALERTS_SQL).toBe(readFileSync("supabase/migrations/20261003000000_alerts.sql", "utf8"));
+  });
+
   it("seeds the seven default fields", async () => {
     const r = await q("select name from public.fields order by position");
     expect(r.rows.map((x) => x.name)).toEqual(["교육학", "교육공학", "학습과학", "인지심리", "국어교육", "교육평가", "디지털 평가문항"]);
@@ -126,5 +134,19 @@ describe("row level security", () => {
     });
     const r = await as(B, () => q("select query from public.searches order by query"));
     expect(r.rows.map((x) => x.query)).toEqual(["kept", "new"]);
+  });
+  it("shares new-paper alerts with members, lets only editors add them, and keeps read marks private", async () => {
+    const search = (await as(A, () => q("select id from public.searches where query = 'kept'"))).rows[0].id;
+    await as(C, () => q("insert into public.alert_hits (search_id, project_id, paper_key, paper) values ($1, $2, 'doi:10.1/new', '{\"title\":\"New\"}')", [search, project]));
+    await expect(
+      as(B, () => q("insert into public.alert_hits (search_id, project_id, paper_key, paper) values ($1, $2, 'doi:10.1/x', '{}')", [search, project])),
+    ).rejects.toThrow();
+    expect((await as(B, () => q("select paper_key from public.alert_hits"))).rows).toEqual([{ paper_key: "doi:10.1/new" }]);
+    await as(B, () => q("insert into public.alert_reads (search_id) values ($1)", [search]));
+    expect((await as(A, () => q("select * from public.alert_reads"))).rows).toHaveLength(0);
+    expect((await as(B, () => q("select * from public.alert_reads"))).rows).toHaveLength(1);
+    // 편집 권한이 있어야 확인 시각을 남길 수 있다
+    const upd = await as(B, () => q("update public.searches set checked_at = now() where id = $1 returning id", [search]));
+    expect(upd.rows).toHaveLength(0);
   });
 });

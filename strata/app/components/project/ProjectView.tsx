@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/client";
 import type { ProjectData } from "@/lib/server/load";
 import { Avatar, FieldTags } from "../bits";
 import { CompareTab } from "./CompareTab";
@@ -9,12 +10,23 @@ import { ProjectEditor } from "./ProjectEditor";
 import { ResultsTab } from "./ResultsTab";
 import { SharePanel } from "./SharePanel";
 import { useCitations } from "./useCitations";
-import { useSearch, type SearchResult } from "./useSearch";
+import { type Hit, useSearch, type SearchResult } from "./useSearch";
 
-export function ProjectView({ data, initialResult }: { data: ProjectData; initialResult?: SearchResult | null }) {
+/** 새 논문 알림에서 "프로젝트에서 열기"로 들어왔을 때 보여 줄 논문들 */
+export interface AlertOpen {
+  searchId: string;
+  query: string;
+  hits: Hit[];
+}
+
+export function ProjectView({ data, initialResult, alert }: { data: ProjectData; initialResult?: SearchResult | null; alert?: AlertOpen | null }) {
   const { project, role, members, fields, rows } = data;
-  const s = useSearch(project.id, project.default_query, initialResult);
-  const [tab, setTab] = useState<"results" | "table" | "dash" | "graph">(initialResult || !rows.length ? "results" : "table");
+  const s = useSearch(project.id, project.default_query, initialResult, alert ? { title: `새 논문 알림 — “${alert.query}”`, results: alert.hits } : null);
+  // 알림을 열어 봤으면 읽음으로 표시한다 (나에게만)
+  useEffect(() => {
+    if (alert) api("/api/alerts/read", { body: { searchId: alert.searchId } }).catch(() => {});
+  }, [alert]);
+  const [tab, setTab] = useState<"results" | "table" | "dash" | "graph">(alert || initialResult || !rows.length ? "results" : "table");
   const cites = useCitations(
     project.id,
     rows.map((r) => r.paper.id),

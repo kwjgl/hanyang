@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <main className="main">
         {children}
         <p className="kci-note" style={{ marginTop: 40 }}>
-          논문 정보: OpenAlex · Semantic Scholar · ERIC · Crossref. 요약은 Claude가 초록만 근거로 만든 것이며 원문 초록을 함께 보관합니다.
+          논문 정보: OpenAlex · Semantic Scholar · ERIC · Crossref. 요약은 AI가 초록만 근거로 만든 것이며 원문 초록을 함께 보관합니다.
         </p>
       </main>
     </div>
