@@ -391,3 +391,5 @@ a.acct[aria-current="page"]{box-shadow:0 0 0 2px var(--accent-soft)}
 .gwrap g[role="button"]:focus-visible circle.g-node{stroke:var(--accent);stroke-width:3}
 .nd-list{display:flex;flex-direction:column;gap:4px;margin-top:4px;font-size:13px}
 .nd-list .meta{color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:transparent;color:var(--ink)}
+.chip[aria-pressed="false"]{color:var(--muted)}

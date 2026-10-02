@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { countBy, TIER_ORDER, tierCounts, weeklyCounts, yearBins } from "@/lib/dashboard";
 import type { ProjectData } from "@/lib/server/load";
 import { Avatar } from "../bits";
+import { TrendPanel } from "./TrendPanel";
 import type { Citations } from "./useCitations";
 
 type Row = { label: string; n: number; flag?: string; tip?: string };
@@ -119,10 +120,15 @@ export function DashboardTab({ data, cites, onShowCore }: { data: ProjectData; c
 
   if (!rows.length)
     return (
-      <div className="empty-state">
-        <h2>아직 보관한 논문이 없습니다</h2>
-        <p>논문을 보관하면 소주제별 편수, 연도 분포, 읽기 진행 상황이 여기에 그려집니다.</p>
-      </div>
+      <>
+        <div className="empty-state">
+          <h2>아직 보관한 논문이 없습니다</h2>
+          <p>논문을 보관하면 소주제별 편수, 연도 분포, 읽기 진행 상황이 여기에 그려집니다.</p>
+        </div>
+        <div className="dash">
+          <TrendPanel projectId={data.project.id} />
+        </div>
+      </>
     );
 
   const { n, done, doing, todo, tiers } = stats;
@@ -181,6 +187,7 @@ export function DashboardTab({ data, cites, onShowCore }: { data: ProjectData; c
       </div>
 
       <div className="dash">
+        <TrendPanel projectId={data.project.id} />
         <div className="panel">
           <h3>소주제별 논문 수</h3>
           <p className="sub">한 편 이하인 소주제는 근거가 얇다는 뜻입니다.</p>

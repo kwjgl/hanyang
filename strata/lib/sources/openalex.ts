@@ -159,3 +159,15 @@ export async function openAlexWorks(q: { ids?: string[]; dois?: string[] }, with
   }
   return out;
 }
+
+/** 검색어에 맞는 논문 수를 출판 연도별로 센다 (OpenAlex 전체 집계) */
+export async function openAlexYearCounts(term: string, from: number, to: number): Promise<{ counts: number[]; total: number }> {
+  const params = withAuth(new URLSearchParams({ search: term, filter: `publication_year:${from}-${to}`, group_by: "publication_year" }));
+  const data = await fetchJson<{ meta?: { count?: number }; group_by?: { key: string; count: number }[] }>("OpenAlex", `${BASE}/works?${params}`);
+  const counts = new Array<number>(to - from + 1).fill(0);
+  for (const g of data.group_by ?? []) {
+    const y = Number(g.key);
+    if (y >= from && y <= to) counts[y - from] = g.count;
+  }
+  return { counts, total: data.meta?.count ?? counts.reduce((a, b) => a + b, 0) };
+}
