@@ -1,5 +1,5 @@
 "use client";
-import type { KciTestResult } from "@/app/api/kci/test/route";
+import type { KciPingResult, KciTestRow } from "@/app/api/kci/test/route";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, errMsg, toast } from "@/lib/client";
@@ -194,20 +194,35 @@ export function SettingsView(props: {
   );
 }
 
-/** 국내 논문 검색(KCI) 연결 확인 */
+/** 국내 논문 검색(KCI) 연결 확인: 연결 → 띄어쓰기 그대로 → 띄어쓰기 없이, 한 단계씩 확인하고 결과를 남겨 둔다 */
 function KciSection() {
   const [q, setQ] = useState("디지털 읽기 평가");
-  const [busy, setBusy] = useState(false);
-  const [res, setRes] = useState<KciTestResult | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [ping, setPing] = useState<KciPingResult | null>(null);
+  const [rows, setRows] = useState<KciTestRow[]>([]);
+  const [fail, setFail] = useState<string | null>(null);
+  const sec = (ms: number) => `${(ms / 1000).toFixed(1)}초`;
+
   const run = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
+    setPing(null);
+    setRows([]);
+    setFail(null);
     try {
-      setRes(await api<KciTestResult>(`/api/kci/test?q=${encodeURIComponent(q)}`));
+      setBusy("1/3 연결 확인 중…");
+      const p = await api<KciPingResult>("/api/kci/test?step=ping");
+      setPing(p);
+      if (!p.ready) return;
+      const queries = [...new Set([q.trim(), q.replace(/\s+/g, "")])];
+      for (const [i, query] of queries.entries()) {
+        setBusy(`${i + 2}/3 “${query}” 찾는 중…`);
+        const r = await api<KciTestRow>(`/api/kci/test?q=${encodeURIComponent(query)}`);
+        setRows((prev) => [...prev, r]);
+      }
     } catch (err) {
-      toast(errMsg(err));
+      setFail(errMsg(err));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
   return (
@@ -218,38 +233,55 @@ function KciSection() {
       </p>
       <form className="line" onSubmit={run}>
         <input type="text" value={q} onChange={(e) => setQ(e.target.value)} aria-label="KCI 확인용 검색어" />
-        <button className="btn" disabled={busy || !q.trim()}>
-          {busy ? "확인 중… (최대 1분)" : "연결 확인"}
+        <button className="btn" disabled={!!busy || !q.trim()}>
+          {busy ?? "연결 확인"}
         </button>
       </form>
-      {res && !res.ready && (
+      {fail && (
+        <p className="warnbox" style={{ marginTop: 10 }}>
+          확인 도중 멈췄습니다: {fail}
+        </p>
+      )}
+      {ping && !ping.ready && (
         <p className="warnbox" style={{ marginTop: 10 }}>
           아직 KCI 인증키가 설정되지 않았습니다. Vercel → Settings → Environment Variables에 <code>KCI_SERVICE_KEY</code>를 넣고 Redeploy 해 주세요.
         </p>
       )}
-      {res?.ready && (
+      {ping?.ready && (
         <p className="meta" style={{ marginTop: 10 }}>
-          서버 위치: {res.region ?? "알 수 없음"} · Supabase 왕복 {res.dbMs ?? "?"}ms · KCI 기본 연결:{" "}
-          {res.ping?.ok ? `됨 (${((res.ping.ms ?? 0) / 1000).toFixed(1)}초, 전체 ${res.ping.total?.toLocaleString() ?? "?"}편)` : `안 됨 — ${res.ping?.error} (${((res.ping?.ms ?? 0) / 1000).toFixed(1)}초)`}
+          서버 위치: <b>{ping.region ?? "알 수 없음"}</b> · Supabase 왕복 {ping.dbMs ?? "?"}ms · KCI 기본 연결:{" "}
+          {ping.ok ? (
+            <b>
+              됨 ({sec(ping.ms)}, 전체 {ping.total?.toLocaleString() ?? "?"}편)
+            </b>
+          ) : (
+            <b style={{ color: "var(--warn)" }}>
+              안 됨 — {ping.error} ({sec(ping.ms)})
+            </b>
+          )}
         </p>
       )}
-      {res?.rows.map((r) => (
+      {rows.map((r) => (
         <div key={r.query} style={{ marginTop: 12 }}>
           <b style={{ fontSize: 13 }}>“{r.query}”</b>{" "}
           {r.error ? (
             <span style={{ color: "var(--warn)", fontSize: 13 }}>
-              — {r.error} ({(r.ms / 1000).toFixed(1)}초)
+              — {r.error} ({sec(r.ms)})
             </span>
           ) : (
             <span className="meta">
-              — 제목에 이 말이 들어간 논문 {r.total?.toLocaleString() ?? "?"}편 ({(r.ms / 1000).toFixed(1)}초)
+              — 제목에 이 말이 들어간 논문 {r.total?.toLocaleString() ?? "?"}편 ({sec(r.ms)})
             </span>
           )}
           <ul className="mini-list" style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
             {r.titles.map((t, i) => (
               <li key={i}>
                 {t.title} {t.year ? `(${t.year})` : ""}
-                <span className="meta"> {t.abstract ? "· 초록 있음" : "· 초록 없음"}{t.doi ? " · DOI 있음" : ""}</span>
+                <span className="meta">
+                  {" "}
+                  {t.abstract ? "· 초록 있음" : "· 초록 없음"}
+                  {t.doi ? " · DOI 있음" : ""}
+                </span>
               </li>
             ))}
           </ul>
