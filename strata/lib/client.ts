@@ -28,3 +28,18 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 export const errMsg = (e: unknown) => (e instanceof Error ? e.message : "처리하지 못했습니다");
+
+/** 글을 파일로 내려받게 한다 */
+export function downloadText(filename: string, text: string, mime = "text/plain") {
+  const url = URL.createObjectURL(new Blob([text], { type: `${mime};charset=utf-8` }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** 파일 이름에 쓸 수 없는 글자를 뺀다 */
+export const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) || "strata";

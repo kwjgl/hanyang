@@ -2,11 +2,12 @@
 import { useRouter } from "next/navigation";
 import { Fragment, useMemo, useState } from "react";
 import { api, copyText, errMsg, toast } from "@/lib/client";
-import { apa, tsv } from "@/lib/export";
+import { apa, type ExportPaper, tsv } from "@/lib/export";
 import { tierLabel, tierOf } from "@/lib/impact";
 import type { ProjectData, TableRow } from "@/lib/server/load";
 import type { Candidate, ReadStatus } from "@/lib/types";
 import { FieldTags, firstAuthor, STATUS_LABEL, StatusPill, SummaryView, Tier } from "../bits";
+import { ExportMenu } from "../ExportMenu";
 import { CoreList } from "./CoreList";
 import type { Citations } from "./useCitations";
 
@@ -62,6 +63,27 @@ export function CompareTab({
     setOut(text);
     copyText(text);
   };
+  // 파일 내보내기용: 지금 묶음·필터 그대로
+  const exportGroups = useMemo(
+    () =>
+      groups.map(([name, rs]) => ({
+        name,
+        papers: rs.map(
+          (r): ExportPaper => ({
+            ...r.paper,
+            impact: tierLabel(tierOf(r.paper.impact, r.paper.year), r.paper.impact?.pct),
+            summary: r.summary,
+            subtopic: subtopics.find((s) => s.id === r.subtopicId)?.name ?? null,
+            fields: r.fieldIds.map((id) => fields.find((f) => f.id === id)?.name ?? "").filter(Boolean),
+            notes: r.notes.map((n) => (n.visibility === "private" ? `(나만) ${n.body}` : n.body)),
+            status: STATUS_LABEL[r.status],
+            starred: r.starred,
+          }),
+        ),
+      })),
+    [groups, subtopics, fields],
+  );
+
   const exportApa = () => {
     const text = visible
       .map((r) => apa(r.paper))
@@ -122,6 +144,12 @@ export function CompareTab({
           <button className="btn" onClick={exportApa}>
             참고문헌 복사 (APA)
           </button>
+          <ExportMenu
+            name={project.name}
+            question={project.research_question}
+            papers={exportGroups.flatMap((g) => g.papers)}
+            groups={exportGroups}
+          />
         </span>
       </div>
       {out && (

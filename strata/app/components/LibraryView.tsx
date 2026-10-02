@@ -5,7 +5,9 @@ import { useMemo, useState } from "react";
 import { api, errMsg, toast } from "@/lib/client";
 import type { LibraryRow } from "@/lib/server/load";
 import type { Field, ReadStatus } from "@/lib/types";
+import { tierLabel, tierOf } from "@/lib/impact";
 import { FieldTags, firstAuthor, STATUS_LABEL, Tier } from "./bits";
+import { ExportMenu } from "./ExportMenu";
 
 const TITLES: Record<string, [string, string]> = {
   all: ["전체 서재", "모든 프로젝트에 보관한 논문이 한곳에 모입니다. 한 논문이 여러 프로젝트에 들어갈 수 있습니다."],
@@ -62,6 +64,20 @@ export function LibraryView({ rows, fields, editable, view, fieldId }: { rows: L
       <div className="phead">
         <h1>{heading}</h1>
         <span className="meta">{list.length}편</span>
+        <span style={{ marginLeft: "auto" }}>
+          <ExportMenu
+            name={`서재 - ${heading}`}
+            papers={list.map((r) => ({
+              ...r.paper,
+              impact: tierLabel(tierOf(r.paper.impact, r.paper.year), r.paper.impact?.pct),
+              summary: r.summary,
+              subtopic: r.projects.map((p) => (p.subtopic ? `${p.name} › ${p.subtopic}` : p.name)).join("; "),
+              fields: r.fieldIds.map((id) => fields.find((f) => f.id === id)?.name ?? "").filter(Boolean),
+              status: STATUS_LABEL[r.status],
+              starred: r.starred,
+            }))}
+          />
+        </span>
       </div>
       <p className="rq">{desc}</p>
       <input className="afind" value={q} onChange={(e) => setQ(e.target.value)} placeholder="제목·저자·요약 내용으로 찾기" aria-label="서재 검색" style={{ marginTop: 14 }} />

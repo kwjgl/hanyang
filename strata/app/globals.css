@@ -395,3 +395,10 @@ a.acct[aria-current="page"]{box-shadow:0 0 0 2px var(--accent-soft)}
 .chip[aria-pressed="false"]{color:var(--muted)}
 .alert-n{font-family:var(--f-mono);font-size:12px;background:var(--info);color:var(--surface);border-radius:999px;padding:1px 8px}
 .warn-line{display:block;margin-top:4px;color:var(--warn);font-size:12.5px}
+/* 3단계 — 내보내기 */
+.menu-wrap{position:relative;display:inline-block}
+.menu{position:absolute;right:0;top:calc(100% + 4px);z-index:8;min-width:260px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.menu-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;border:0;background:none;text-align:left;padding:7px 8px;border-radius:7px;color:var(--ink)}
+.menu-item:hover,.menu-item:focus-visible{background:var(--sunk)}
+.menu-item b{font-size:13px}
+.menu-item span{font-size:11.5px;color:var(--muted)}

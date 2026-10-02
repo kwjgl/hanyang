@@ -2,7 +2,7 @@
 import type { KciPingResult, KciTestRow } from "@/app/api/kci/test/route";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api, errMsg, toast } from "@/lib/client";
+import { api, downloadText, errMsg, toast } from "@/lib/client";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { PROVIDERS, type Provider, type PublicAi } from "@/lib/llm/meta";
 import type { Field } from "@/lib/types";
@@ -189,10 +189,42 @@ export function SettingsView(props: {
         </div>
       </section>
 
+      <BackupSection />
+
       <ScholarSection />
 
       <KciSection />
     </div>
+  );
+}
+
+/** 내가 볼 수 있는 모든 프로젝트를 JSON 파일 하나로 */
+function BackupSection() {
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      const data = await api<{ projects: { papers: unknown[] }[] }>("/api/backup");
+      const d = new Date();
+      const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+      downloadText(`strata-backup-${stamp}.json`, JSON.stringify(data, null, 2), "application/json");
+      toast(`프로젝트 ${data.projects.length}개, 논문 ${data.projects.reduce((n, p) => n + p.papers.length, 0)}편을 백업했습니다`);
+    } catch (e) {
+      toast(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section>
+      <h2>전체 백업</h2>
+      <p className="sub">
+        내가 볼 수 있는 모든 프로젝트를 파일 하나(JSON)로 내려받습니다. 논문 정보·초록·요약·분야·소주제·메모(공동 메모와 내 메모)·내 읽기 상태·저장한 검색어·공백 지도 저장본이 들어갑니다. 참고문헌 관리 프로그램용 파일은 비교표·서재의 <b>내보내기</b>를 쓰세요.
+      </p>
+      <button className="btn" onClick={run} disabled={busy}>
+        {busy ? "모으는 중…" : "백업 파일 내려받기"}
+      </button>
+    </section>
   );
 }
 
