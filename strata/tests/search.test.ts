@@ -108,7 +108,7 @@ describe("source parsers", () => {
     expect(c.authors).toEqual(["Minji Kim", "Hana Lee"]);
     expect(c.doi).toBe("10.1080/08957347.2021.0000001");
     expect(c.eduLevel).toContain("Middle Schools");
-    expect(c.kind).toBe("report");
+    expect(c.kind).toBe("article");
   });
   it("parses Crossref items with Korean titles and JATS abstracts", () => {
     const c = parseCrossrefItem(crossrefItem)!;
@@ -271,5 +271,30 @@ describe("source paging and totals", () => {
     const r = await searchCrossref("디지털 평가", { page: 2 });
     expect(new URL(urls[0]).searchParams.get("offset")).toBe("60");
     expect(r.total).toBe(800);
+  });
+});
+
+describe("제목·초록 정리", () => {
+  it("HTML 문자 표기를 글자로 바꾼다", async () => {
+    const { decodeEntities, cleanTitle, stripTags } = await import("@/lib/text");
+    expect(decodeEntities("Students&apos; Conceptions &amp; &quot;AaL&quot; &#39;x&#x27;")).toBe(`Students' Conceptions & "AaL" 'x'`);
+    expect(cleanTitle("Assessment<i>as</i>learning: blurring")).toBe("Assessment as learning: blurring");
+    expect(cleanTitle("H<sub>2</sub>O in <i>vitro</i>")).toBe("H2O in vitro");
+    expect(stripTags("p < .05 and q > .1")).toBe("p < .05 and q > .1");
+  });
+
+  it("ERIC 학술지 논문은 'Reports - Research'가 같이 붙어 있어도 논문으로 본다", () => {
+    expect(parseEricDoc({ id: "EJ1", title: "T", publicationtype: ["Journal Articles", "Reports - Research"] })?.kind).toBe("article");
+    expect(parseEricDoc({ id: "EJ2", title: "T", publicationtype: ["Journal Articles", "Information Analyses"] })?.kind).toBe("review");
+    expect(parseEricDoc({ id: "ED3", title: "T", publicationtype: ["Reports - Research"] })?.kind).toBe("report");
+  });
+
+  it("합칠 때 논문 종류는 OpenAlex 표기를 먼저 믿는다", () => {
+    const base = { doi: "10.1/x", title: "Same paper title here", authors: [], year: 2020, venue: null, abstract: null, abstractSource: null, citations: null, url: null, oaUrl: null, lang: "en", ids: {}, impact: {} };
+    const out = mergeAndRank([
+      { source: "eric", term: "q", items: [{ ...base, key: "doi:10.1/x", kind: "report", sources: ["eric"] }] },
+      { source: "openalex", term: "q", items: [{ ...base, key: "doi:10.1/x", kind: "article", sources: ["openalex"] }] },
+    ]);
+    expect(out[0].kind).toBe("article");
   });
 });

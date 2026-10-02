@@ -19,17 +19,42 @@ export function titleKey(title: string): string {
     .replace(/[^0-9a-zㄱ-ㆎ가-힣]+/g, "");
 }
 
+/** 진짜 태그만 (꺾쇠 바로 뒤에 영문자). "p < .05" 같은 부등호는 건드리지 않는다 */
+const TAG = /<\/?[a-z][\w:-]*(\s[^<>]*)?\/?>/gi;
+
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+
+/** &amp; · &apos; · &#39; · &#x27; 같은 HTML 문자 표기를 글자로 바꾼다 */
+export function decodeEntities(s: string): string {
+  return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
+    if (e[0] !== "#") return ENTITIES[e.toLowerCase()] ?? m;
+    const code = e[1].toLowerCase() === "x" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+    return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : m;
+  });
+}
+
 /** JATS·HTML 태그와 군더더기 공백을 걷어낸다 (Crossref 초록 등) */
 export function stripTags(s: string | null | undefined): string | null {
   if (!s) return null;
-  const out = s
-    .replace(/<jats:title>[^<]*<\/jats:title>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+  const out = decodeEntities(
+    s
+      .replace(/<jats:title>[^<]*<\/jats:title>/gi, " ")
+      .replace(TAG, " "),
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+  return out || null;
+}
+
+/**
+ * 제목 정리. 기울임 태그가 낱말 사이에 붙어 있으면("Assessment<i>as</i>learning") 띄어 주고,
+ * 아래·위 첨자(H<sub>2</sub>O)는 붙인 채로 태그만 지운다.
+ */
+export function cleanTitle(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const out = decodeEntities(s)
+    .replace(/(\p{L})<\/?(i|em|b|strong)>(?=\p{L})/giu, "$1 ")
+    .replace(TAG, "")
     .replace(/\s+/g, " ")
     .trim();
   return out || null;

@@ -37,21 +37,47 @@ const JUNK_PREFIX = /^(erratum|corrigendum|correction to|retraction( note)?|retr
 
 export const isJunk = (c: Pick<Candidate, "title">) => JUNK_WHOLE.test(c.title.trim()) || JUNK_PREFIX.test(c.title.trim()) || c.title.trim().length < (hasHangul(c.title) ? 3 : 6);
 
+/** 구두점을 공백으로 바꾸고 앞뒤에 공백을 둬서 구절 단위로 찾을 수 있게 한다 */
+const spaced = (s: string | null | undefined) => (s ? ` ${s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()} ` : "");
+
+/** 낱말 두 개 이상인 검색어가 그대로(붙은 순서대로) 들어 있나. 예: "assessment for learning" */
+export function hasPhrase(phrases: string[], text: string | null | undefined): boolean {
+  const t = spaced(text);
+  return !!t && phrases.some((p) => p.split(" ").length >= 2 && t.includes(` ${p} `));
+}
+
+/** AI가 넓힌 검색어의 무게 (원래 검색어 = 1) */
+export const EXPANSION_WEIGHT = 0.5;
+
 /**
- * 순위 결합 점수에 구글 학술검색이 중시하는 두 가지를 더한다.
- * - 제목(과 초록)에 검색어 낱말이 얼마나 들어 있나. 원래 검색어가 확장 검색어보다 무겁다.
+ * 순위 결합 점수에 구글 학술검색이 중시하는 것들을 더한다.
+ * - 검색어가 제목에 구절 그대로 들어 있나 (가장 크게)
+ * - 검색어 낱말이 제목(과 초록)에 얼마나 들어 있나
  * - 해마다 받은 피인용 수 (오래 많이 인용된 고전이 위로)
+ * 원래 검색어가 AI가 넓힌 검색어보다 무겁다.
  */
 export function rerank(items: Candidate[], terms: string[], now = new Date().getFullYear()): Candidate[] {
-  const sets = terms.map((t, i) => ({ words: queryWords(hasHangul(t) ? stripKoreanParticles(t) : t), weight: i === 0 ? 1 : 0.7 })).filter((s) => s.words.length);
+  const sets = terms
+    .map((t, i) => {
+      const ko = hasHangul(t);
+      const stripped = ko ? stripKoreanParticles(t) : t;
+      // 한국어는 조사를 뗀 것과 원래 모양 둘 다 구절로 본다
+      const phrases = [...new Set([spaced(t).trim(), spaced(stripped).trim()])].filter(Boolean);
+      return { words: queryWords(stripped), phrases, weight: i === 0 ? 1 : EXPANSION_WEIGHT };
+    })
+    .filter((s) => s.words.length);
   return items
     .filter((c) => !isJunk(c))
     .map((c) => {
       let match = 0;
-      for (const s of sets) match = Math.max(match, s.weight * (coverage(s.words, c.title) + 0.3 * coverage(s.words, c.abstract)));
+      let phrase = 0;
+      for (const s of sets) {
+        match = Math.max(match, s.weight * (coverage(s.words, c.title) + 0.3 * coverage(s.words, c.abstract)));
+        phrase = Math.max(phrase, s.weight * (hasPhrase(s.phrases, c.title) ? 1 : hasPhrase(s.phrases, c.abstract) ? 0.2 : 0));
+      }
       const age = Math.max(1, now - (c.year ?? now) + 1);
       const perYear = (c.citations ?? 0) / age;
-      const score = (c.score ?? 0) + 0.016 * match + 0.003 * Math.log10(1 + perYear);
+      const score = (c.score ?? 0) + 0.022 * phrase + 0.016 * match + 0.003 * Math.log10(1 + perYear);
       return { ...c, score: Math.round(score * 10000) / 10000 };
     })
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));

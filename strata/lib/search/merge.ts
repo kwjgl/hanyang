@@ -12,6 +12,9 @@ export interface RankedList {
 
 const RRF_K = 60;
 
+/** 논문 종류는 OpenAlex·Crossref 표기를 먼저 믿는다 (ERIC은 학술지 논문에도 '보고서'를 붙이곤 한다) */
+const trustedKind = (c: Candidate) => (c.kind && c.sources.some((s) => s === "openalex" || s === "crossref") ? c.kind : null);
+
 function mergeInto(a: Candidate, b: Candidate): Candidate {
   const pick = <T>(x: T | null | undefined, y: T | null | undefined) => (x ?? y ?? null) as T | null;
   // 초록은 더 긴 쪽을 쓴다 (출처마다 잘린 초록이 있다)
@@ -29,7 +32,7 @@ function mergeInto(a: Candidate, b: Candidate): Candidate {
     url: pick(a.url, b.url),
     oaUrl: pick(a.oaUrl, b.oaUrl),
     lang: pick(a.lang, b.lang),
-    kind: a.kind === "review" || b.kind === "review" ? "review" : pick(a.kind, b.kind),
+    kind: a.kind === "review" || b.kind === "review" ? "review" : trustedKind(a) ?? trustedKind(b) ?? pick(a.kind, b.kind),
     ids: { ...b.ids, ...a.ids },
     sources: [...new Set([...a.sources, ...b.sources])],
     impact: {

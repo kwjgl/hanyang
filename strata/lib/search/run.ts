@@ -6,7 +6,7 @@ import { searchS2 } from "@/lib/sources/semanticscholar";
 import { hasHangul, stripKoreanParticles } from "@/lib/text";
 import type { Candidate, Scope, SearchPage, SourceId } from "@/lib/types";
 import { mergeAndRank, type RankedList } from "./merge";
-import { rerank } from "./rank";
+import { EXPANSION_WEIGHT, rerank } from "./rank";
 
 export interface SearchInput {
   terms: string[];
@@ -42,7 +42,7 @@ const lanes: Record<SourceId, ReturnType<typeof limiter>> = {
 interface Task {
   source: SourceId;
   term: string;
-  /** 원래 검색어 1, AI가 넓힌 검색어 0.7에 출처별 무게를 곱한 값 */
+  /** 원래 검색어 1, AI가 넓힌 검색어 0.5에 출처별 무게를 곱한 값 */
   weight: number;
   run: () => Promise<SearchPage>;
 }
@@ -66,7 +66,7 @@ export function planTasks(input: SearchInput): Task[] {
   const tasks: Task[] = [];
   const seen = new Set<string>();
   for (const [i, raw] of terms.entries()) {
-    const tw = i === 0 ? 1 : 0.7;
+    const tw = i === 0 ? 1 : EXPANSION_WEIGHT;
     const ko = hasHangul(raw);
     // 한국어는 조사를 떼어야 제목·키워드와 맞는다
     const term = ko ? stripKoreanParticles(raw) : raw.trim();

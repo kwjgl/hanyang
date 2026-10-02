@@ -1,4 +1,4 @@
-import { normalizeDoi, reconstructAbstract, titleKey } from "@/lib/text";
+import { cleanTitle, normalizeDoi, reconstructAbstract, stripTags, titleKey } from "@/lib/text";
 import type { Candidate, SearchPage } from "@/lib/types";
 import { fetchJson } from "./http";
 
@@ -51,11 +51,11 @@ function percentile(v: number | null | undefined): number | null {
 }
 
 export function parseOpenAlexWork(w: OpenAlexWork): Candidate | null {
-  const title = w.display_name?.trim();
+  const title = cleanTitle(w.display_name);
   if (!title) return null;
   const doi = normalizeDoi(w.doi);
   const shortId = w.id.replace("https://openalex.org/", "");
-  const abstract = reconstructAbstract(w.abstract_inverted_index);
+  const abstract = stripTags(reconstructAbstract(w.abstract_inverted_index));
   return {
     key: doi ? `doi:${doi}` : `t:${titleKey(title)}:${w.publication_year ?? ""}`,
     doi,

@@ -1,4 +1,4 @@
-import { normalizeDoi, stripTags, titleKey } from "@/lib/text";
+import { cleanTitle, normalizeDoi, stripTags, titleKey } from "@/lib/text";
 import type { Candidate, SearchPage } from "@/lib/types";
 import { fetchJson } from "./http";
 
@@ -31,7 +31,7 @@ function kindOf(type: string | undefined): string | null {
 
 export function parseCrossrefItem(it: CrossrefItem): Candidate | null {
   // 국내 학술지는 제목 배열에 국문·영문이 함께 오는 경우가 많다. 첫 번째(원제)를 쓴다.
-  const title = stripTags(it.title?.[0]);
+  const title = cleanTitle(it.title?.[0]);
   if (!title) return null;
   const doi = normalizeDoi(it.DOI);
   const year = it.issued?.["date-parts"]?.[0]?.[0] ?? null;

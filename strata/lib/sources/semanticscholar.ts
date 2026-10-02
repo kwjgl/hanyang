@@ -1,4 +1,4 @@
-import { normalizeDoi, titleKey } from "@/lib/text";
+import { cleanTitle, normalizeDoi, stripTags, titleKey } from "@/lib/text";
 import type { Candidate, SearchPage } from "@/lib/types";
 import { fetchJson } from "./http";
 
@@ -32,7 +32,7 @@ function kindOf(types: string[] | null | undefined): string | null {
 }
 
 export function parseS2Paper(p: S2Paper): Candidate | null {
-  const title = p.title?.trim();
+  const title = cleanTitle(p.title);
   if (!title) return null;
   const doi = normalizeDoi(p.externalIds?.DOI ? String(p.externalIds.DOI) : null);
   return {
@@ -42,7 +42,7 @@ export function parseS2Paper(p: S2Paper): Candidate | null {
     authors: (p.authors ?? []).map((a) => a.name ?? "").filter(Boolean),
     year: p.year ?? null,
     venue: p.venue || null,
-    abstract: p.abstract || null,
+    abstract: stripTags(p.abstract),
     abstractSource: p.abstract ? "s2" : null,
     citations: p.citationCount ?? null,
     url: doi ? `https://doi.org/${doi}` : (p.url ?? null),

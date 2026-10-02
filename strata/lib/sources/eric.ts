@@ -1,4 +1,4 @@
-import { normalizeDoi, titleKey } from "@/lib/text";
+import { cleanTitle, normalizeDoi, stripTags, titleKey } from "@/lib/text";
 import type { Candidate, SearchPage } from "@/lib/types";
 import { fetchJson } from "./http";
 
@@ -22,6 +22,8 @@ export interface EricDoc {
 function kindOf(d: EricDoc): string | null {
   const t = (d.publicationtype ?? []).join(" ").toLowerCase();
   if (t.includes("dissertation")) return "dissertation";
+  // ERIC은 학술지 논문에도 "Reports - Research"를 함께 붙인다. 학술지 논문이 먼저다.
+  if (t.includes("journal articles")) return t.includes("information analyses") ? "review" : "article";
   if (t.includes("report")) return "report";
   if (t.includes("book")) return "book-chapter";
   if (t.includes("review")) return "review";
@@ -35,7 +37,7 @@ const flipName = (n: string) => {
 };
 
 export function parseEricDoc(d: EricDoc): Candidate | null {
-  const title = d.title?.trim();
+  const title = cleanTitle(d.title);
   if (!title) return null;
   const doi = normalizeDoi(d.url);
   const year = d.publicationdateyear ? Number(d.publicationdateyear) || null : null;
@@ -47,7 +49,7 @@ export function parseEricDoc(d: EricDoc): Candidate | null {
     authors: (d.author ?? []).map(flipName),
     year,
     venue: d.source ?? null,
-    abstract: d.description || null,
+    abstract: stripTags(d.description),
     abstractSource: d.description ? "eric" : null,
     citations: null,
     url: doi ? `https://doi.org/${doi}` : `https://eric.ed.gov/?id=${d.id}`,
