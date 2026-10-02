@@ -5,6 +5,9 @@ import { SourceError } from "@/lib/sources/http";
 import { kciKey, parseKciXml, searchKci, yearFromTheme } from "@/lib/sources/kci";
 import { kciQueries, planTasks } from "@/lib/search/run";
 
+// 검색에서 KCI를 켰을 때의 동작을 확인한다 (지금 앱에서는 꺼 둠: lib/search/flags.ts)
+vi.mock("@/lib/search/flags", () => ({ KCI_IN_SEARCH: true }));
+
 const sample = `<response><header><resultCode>00</resultCode><resultMsg>NORMAL SERVICE</resultMsg></header>
 <body><items><item><NUM>1</NUM><ARTI_ID>ART001756000</ARTI_ID>
 <ARTI_KOR_TITL>디지털 텍스트 읽기 능력과 디지털 텍스트 읽기 평가에 대한 일고찰</ARTI_KOR_TITL>

@@ -7,6 +7,7 @@ import { searchS2 } from "@/lib/sources/semanticscholar";
 import { hasHangul, stripKoreanParticles } from "@/lib/text";
 import type { Candidate, Scope, SearchPage, SourceId } from "@/lib/types";
 import { mergeAndRank, type RankedList } from "./merge";
+import { KCI_IN_SEARCH } from "./flags";
 import { EXPANSION_WEIGHT, rerank } from "./rank";
 
 export interface SearchInput {
@@ -91,7 +92,7 @@ export function planTasks(input: SearchInput): Task[] {
       // 한국어 단어로 찾으면 이미 국문 논문만 걸린다. 언어 필터는 영문 초록만 등록된 국내 논문을 놓치게 해서 쓰지 않는다
       if (on("openalex")) tasks.push({ source: "openalex", term, weight: tw, run: () => searchOpenAlex(term, { yearFrom, yearTo, page }) });
       if (on("crossref")) tasks.push({ source: "crossref", term, weight: tw * KO_CROSSREF_WEIGHT, run: () => searchCrossref(term, { yearFrom, page }) });
-      if (on("kci") && kciKey())
+      if (KCI_IN_SEARCH && on("kci") && kciKey())
         for (const k of kciQueries(term)) {
           if (seen.has(`kci|${k.q}`)) continue;
           seen.add(`kci|${k.q}`);

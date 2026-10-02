@@ -5,6 +5,7 @@ import { koreanSearchLinks } from "@/lib/korean-links";
 import type { ProjectData } from "@/lib/server/load";
 import { SOURCE_LABEL, type Candidate, type Scope, type SourceId } from "@/lib/types";
 import { ImpactBadges } from "../bits";
+import { KCI_IN_SEARCH } from "@/lib/search/flags";
 import { AddByDoi } from "./AddByDoi";
 import { Tray } from "./Tray";
 import { ALL_SOURCES, type Hit, type SearchState, type Sort } from "./useSearch";
@@ -108,7 +109,7 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
           ))}
         </span>
         <span className="lbl">출처</span>
-        {ALL_SOURCES.filter((src) => src !== "kci" || data.kciReady).map((src: SourceId) => (
+        {ALL_SOURCES.filter((src) => src !== "kci" || (data.kciReady && KCI_IN_SEARCH)).map((src: SourceId) => (
           <label className="src" key={src}>
             <input
               type="checkbox"
