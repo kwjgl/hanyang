@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { mergeAndRank } from "@/lib/search/merge";
 import { coverage, hasPhrase, isJunk, queryWords, rerank } from "@/lib/search/rank";
 import { planTasks } from "@/lib/search/run";
+import { domainOfOpenAlex, domainOfS2, mergeDomain } from "@/lib/search/domain";
 import type { Candidate } from "@/lib/types";
 
 const c = (key: string, over: Partial<Candidate> = {}): Candidate => ({
@@ -125,5 +126,41 @@ describe("구글 학술검색과 비교한 실제 사례 (assessment for learnin
     expect(hasPhrase(["assessment for learning"], "Assessment-for-Learning in practice")).toBe(true);
     expect(hasPhrase(["assessment for learning"], "Assessment, and learning")).toBe(false);
     expect(hasPhrase(["assessment"], "Assessment")).toBe(false);
+  });
+});
+
+describe("다른 분야 논문 거르기 (digital assessment 사례)", () => {
+  it("OpenAlex 주제로 교육·심리·언어 분야인지 판별한다", () => {
+    const t = (topic: string, subfield: string, field: string) => ({ display_name: topic, subfield: { display_name: subfield }, field: { display_name: field } });
+    expect(domainOfOpenAlex(t("Online Learning and Analytics", "Education", "Social Sciences"))).toBe("in");
+    expect(domainOfOpenAlex(t("Pelvic floor disorders", "Urology", "Medicine"))).toBe("out");
+    expect(domainOfOpenAlex(t("Remote Sensing and LiDAR", "Earth-Surface Processes", "Earth and Planetary Sciences"))).toBe("out");
+    expect(domainOfOpenAlex(t("Digital Economy", "Economics and Econometrics", "Economics, Econometrics and Finance"))).toBe("out");
+    // 의학 영역이어도 의학교육 주제면 교육 연구
+    expect(domainOfOpenAlex(t("Medical Education and Assessment", "Medical Education", "Health Professions"))).toBe("in");
+    // 기계 학습은 교육이 아니다
+    expect(domainOfOpenAlex(t("Machine Learning in Healthcare", "Artificial Intelligence", "Computer Science"))).toBe("out");
+    expect(domainOfOpenAlex(null)).toBeNull();
+  });
+
+  it("Semantic Scholar 분야와 출처끼리 합치기", () => {
+    expect(domainOfS2(["Medicine"])).toBe("out");
+    expect(domainOfS2(["Computer Science", "Education"])).toBe("in");
+    expect(domainOfS2([])).toBeNull();
+    expect(mergeDomain("out", "in")).toBe("in");
+    expect(mergeDomain(null, "out")).toBe("out");
+    expect(mergeDomain(undefined, null)).toBeNull();
+  });
+
+  it("다른 분야 논문은 제목이 딱 맞고 피인용이 많아도 맨 뒤로 간다", () => {
+    const terms = ["digital assessment"];
+    const items = [
+      c("Pelvic floor maximal strength using vaginal digital assessment", { score: 0.0164, citations: 89, year: 2004, domain: "out" }),
+      c("edgeR: digital gene expression assessment", { score: 0.016, citations: 45594, year: 2009, domain: "out" }),
+      c("Rethinking assessment in a digital age", { score: 0.0143, citations: 265, year: 2015, domain: "in" }),
+      c("Digital assessment of mathematics: opportunities, issues and criteria", { score: 0.015, citations: 30, year: 2019, domain: null }),
+    ];
+    const out = rerank(items, terms, 2026).map((x) => x.title);
+    expect(out.slice(-2).sort()).toEqual(["Pelvic floor maximal strength using vaginal digital assessment", "edgeR: digital gene expression assessment"].sort());
   });
 });

@@ -18,6 +18,8 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
   const [onlyTop, setOnlyTop] = useState(false);
   const [onlyReview, setOnlyReview] = useState(false);
   const [hideSaved, setHideSaved] = useState(false);
+  /** 의학·공학 등 다른 분야로 판별된 논문도 보기 (기본은 숨김) */
+  const [showOff, setShowOff] = useState(false);
   const [shown, setShown] = useState(PAGE);
   const [openAbs, setOpenAbs] = useState<Set<string>>(new Set());
   const [histOpen, setHistOpen] = useState(false);
@@ -25,8 +27,10 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
   const [addOpen, setAddOpen] = useState(false);
 
   const base: Hit[] = s.related ? s.related.results : (s.result?.results ?? []);
+  const offCount = useMemo(() => base.filter((c) => c.domain === "out").length, [base]);
   const list = useMemo(() => {
     let l = [...base];
+    if (!showOff) l = l.filter((c) => c.domain !== "out");
     if (onlyTop) l = l.filter((c) => (c.impact?.pct ?? 0) >= 90);
     if (onlyReview) l = l.filter((c) => c.kind === "review");
     if (hideSaved) l = l.filter((c) => !c.placements?.some((p) => p.projectId === project.id));
@@ -34,7 +38,7 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
     if (sort === "cite") l.sort((a, b) => (b.citations ?? -1) - (a.citations ?? -1));
     if (sort === "new") l.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
     return l;
-  }, [base, onlyTop, onlyReview, hideSaved, sort, project.id]);
+  }, [base, onlyTop, onlyReview, hideSaved, showOff, sort, project.id]);
 
   useEffect(() => setShown(PAGE), [s.result, s.related]);
 
@@ -138,6 +142,11 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
         <label className="src">
           <input type="checkbox" checked={hideSaved} onChange={(e) => setHideSaved(e.target.checked)} /> 이미 보관한 논문 숨기기
         </label>
+        {offCount > 0 && (
+          <label className="src" title="같은 말을 쓰는 의학·공학·경영 등 다른 분야 논문입니다 (OpenAlex·Semantic Scholar 분야 정보 기준)">
+            <input type="checkbox" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} /> 다른 분야 논문 {offCount}건도 보기
+          </label>
+        )}
       </div>
 
       {showKoreanLinks && (

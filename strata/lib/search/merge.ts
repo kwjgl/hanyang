@@ -1,5 +1,6 @@
 import { titleKey } from "@/lib/text";
 import type { Candidate, SourceId } from "@/lib/types";
+import { mergeDomain } from "./domain";
 
 /** 한 번의 (검색어 × 출처) 호출 결과. 순서가 곧 그 출처의 관련도 순위다. */
 export interface RankedList {
@@ -41,6 +42,7 @@ function mergeInto(a: Candidate, b: Candidate): Candidate {
       influential: pick(a.impact.influential, b.impact.influential),
     },
     eduLevel: a.eduLevel ?? b.eduLevel,
+    domain: mergeDomain(a.domain, b.domain),
   };
 }
 

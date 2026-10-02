@@ -60,6 +60,8 @@ export function parseEricDoc(d: EricDoc): Candidate | null {
     sources: ["eric"],
     impact: {},
     eduLevel: d.educationlevel ?? undefined,
+    // ERIC은 교육 문헌만 모은 곳이다
+    domain: "in",
   };
 }
 

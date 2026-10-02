@@ -1,5 +1,6 @@
 import { cleanTitle, normalizeDoi, reconstructAbstract, stripTags, titleKey } from "@/lib/text";
 import type { Candidate, SearchPage } from "@/lib/types";
+import { domainOfOpenAlex, type OpenAlexTopic } from "@/lib/search/domain";
 import { fetchJson } from "./http";
 
 const BASE = "https://api.openalex.org";
@@ -17,6 +18,7 @@ const SELECT = [
   "type",
   "citation_normalized_percentile",
   "fwci",
+  "primary_topic",
 ].join(",");
 
 export interface OpenAlexWork {
@@ -36,6 +38,7 @@ export interface OpenAlexWork {
   type?: string | null;
   citation_normalized_percentile?: { value?: number | null } | null;
   fwci?: number | null;
+  primary_topic?: OpenAlexTopic | null;
 }
 
 function withAuth(params: URLSearchParams) {
@@ -73,6 +76,7 @@ export function parseOpenAlexWork(w: OpenAlexWork): Candidate | null {
     ids: { openalex: shortId },
     sources: ["openalex"],
     impact: { pct: percentile(w.citation_normalized_percentile?.value), fwci: w.fwci ?? null },
+    domain: domainOfOpenAlex(w.primary_topic),
   };
 }
 

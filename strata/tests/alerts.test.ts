@@ -49,3 +49,10 @@ describe("새 논문 알림", () => {
     expect(pickNew(deep, new Set(deep.slice(0, 60).map((x) => x.key)), 2026)).toEqual([]);
   });
 });
+
+describe("새 논문 알림 — 다른 분야", () => {
+  it("다른 분야로 판별된 논문은 알림에 넣지 않는다", () => {
+    const off = { ...c("t:med", 2026), domain: "out" as const };
+    expect(pickNew([off, c("t:edu", 2026)], new Set(), 2026).map((x) => x.key)).toEqual(["t:edu"]);
+  });
+});

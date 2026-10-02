@@ -37,6 +37,8 @@ export interface Candidate {
   impact: Impact;
   eduLevel?: string[];
   score?: number;
+  /** 연구실 분야(교육·심리·언어)인지: "in" · "out" · 모름(null) */
+  domain?: "in" | "out" | null;
 }
 
 /** 한 번의 검색 호출 결과: 이번 페이지 논문과, 검색어에 맞는 전체 건수 */

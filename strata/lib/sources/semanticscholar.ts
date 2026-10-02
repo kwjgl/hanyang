@@ -1,10 +1,11 @@
 import { cleanTitle, normalizeDoi, stripTags, titleKey } from "@/lib/text";
 import type { Candidate, SearchPage } from "@/lib/types";
+import { domainOfS2 } from "@/lib/search/domain";
 import { fetchJson } from "./http";
 
 const BASE = "https://api.semanticscholar.org";
 const FIELDS =
-  "title,authors,year,venue,abstract,citationCount,influentialCitationCount,externalIds,openAccessPdf,url,publicationTypes";
+  "title,authors,year,venue,abstract,citationCount,influentialCitationCount,externalIds,openAccessPdf,url,publicationTypes,s2FieldsOfStudy";
 
 export interface S2Paper {
   paperId: string;
@@ -20,6 +21,7 @@ export interface S2Paper {
   url?: string | null;
   publicationTypes?: string[] | null;
   tldr?: { text?: string | null } | null;
+  s2FieldsOfStudy?: { category?: string | null }[] | null;
 }
 
 const headers = (): Record<string, string> => (process.env.S2_API_KEY ? { "x-api-key": process.env.S2_API_KEY } : {});
@@ -52,6 +54,7 @@ export function parseS2Paper(p: S2Paper): Candidate | null {
     ids: { s2: p.paperId },
     sources: ["s2"],
     impact: { influential: p.influentialCitationCount ?? null },
+    domain: domainOfS2(p.s2FieldsOfStudy?.map((f) => f.category)),
   };
 }
 

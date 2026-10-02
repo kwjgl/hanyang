@@ -51,9 +51,10 @@ export const EXPANSION_WEIGHT = 0.5;
 
 /**
  * 순위 결합 점수에 구글 학술검색이 중시하는 것들을 더한다.
- * - 검색어가 제목에 구절 그대로 들어 있나 (가장 크게)
+ * - 검색어가 제목에 구절 그대로 들어 있나
  * - 검색어 낱말이 제목(과 초록)에 얼마나 들어 있나
  * - 해마다 받은 피인용 수 (오래 많이 인용된 고전이 위로)
+ * - 연구실 분야(교육·심리·언어)가 아닌 논문은 맨 뒤로
  * 원래 검색어가 AI가 넓힌 검색어보다 무겁다.
  */
 export function rerank(items: Candidate[], terms: string[], now = new Date().getFullYear()): Candidate[] {
@@ -77,7 +78,9 @@ export function rerank(items: Candidate[], terms: string[], now = new Date().get
       }
       const age = Math.max(1, now - (c.year ?? now) + 1);
       const perYear = (c.citations ?? 0) / age;
-      const score = (c.score ?? 0) + 0.022 * phrase + 0.016 * match + 0.003 * Math.log10(1 + perYear);
+      // 다른 분야(의학·공학 등)로 판별된 논문은 맨 뒤로 보낸다. 화면에서는 기본으로 숨긴다.
+      const offDomain = c.domain === "out" ? 0.05 : 0;
+      const score = (c.score ?? 0) + 0.016 * phrase + 0.016 * match + 0.005 * Math.min(3, Math.log10(1 + perYear)) - offDomain;
       return { ...c, score: Math.round(score * 10000) / 10000 };
     })
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));

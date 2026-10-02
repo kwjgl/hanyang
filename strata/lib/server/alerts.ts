@@ -18,11 +18,12 @@ const keysOf = (c: Pick<Candidate, "key" | "doi">) => [c.key, ...(c.doi ? [`doi:
  * 다시 찾은 결과 중 새 논문만 고른다.
  * - 처음 저장할 때 결과와 이미 알림으로 쌓은 논문은 뺀다
  * - 순위가 바뀌어 오래된 논문이 끌려 올라오지 않게 작년·올해 논문만, 관련도 상위에서만 고른다
+ * - 다른 분야(의학·공학 등) 논문은 뺀다
  */
 export function pickNew(results: Candidate[], known: Set<string>, thisYear: number): Candidate[] {
   return results
     .slice(0, LOOK_AT_TOP)
-    .filter((c) => (c.year ?? 0) >= thisYear - 1 && !keysOf(c).some((k) => known.has(k)))
+    .filter((c) => c.domain !== "out" && (c.year ?? 0) >= thisYear - 1 && !keysOf(c).some((k) => known.has(k)))
     .slice(0, MAX_NEW);
 }
 
