@@ -56,3 +56,18 @@ export const CLASSIFY_SYSTEM = `논문을 아래 분야 목록에 따라 분류�
 export function classifyUser(c: Pick<Candidate, "title" | "authors" | "year" | "venue" | "abstract">, oneLine: string | null, fields: Pick<Field, "name" | "description">[]) {
   return `분야 목록:\n${fieldList(fields)}\n\n논문:\n${paperBlock(c)}${oneLine ? `\n한 줄 요약: ${oneLine}` : ""}`;
 }
+
+export const GAP_SYSTEM = `교육 연구 문헌으로 "연구 공백 지도"(소주제 × 대상·방법 등의 표)를 만들려고 한다. 논문마다 제목과 초록을 읽고 아래를 정한다.
+- subtopic: 소주제 목록 중 이 논문이 가장 잘 맞는 하나를 이름 그대로 고른다. 어느 것에도 맞지 않으면 "해당 없음".
+- levels: 연구 대상 학교급. 목록에서 해당하는 것을 모두 고르고, 알 수 없거나 대상이 없는 연구(이론·문헌 연구 등)면 ["해당 없음"].
+- method: 연구 방법 하나.
+- custom: 직접 정의한 축이 있으면 그 범주 중 하나를 이름 그대로, 맞는 것이 없으면 빈 문자열. 축이 없으면 빈 문자열.
+초록이 없으면 제목만으로 판단한다. 받은 논문 모두에 대해 id를 그대로 돌려준다. 추측이 지나치면 "해당 없음"을 쓴다.`;
+
+export function gapUser(subtopics: string[], custom: { name: string; categories: string[] } | null | undefined, papers: { id: string; title: string; year: number | null; abstract: string | null }[]) {
+  const axis = custom ? `직접 정의한 축 "${custom.name}": ${custom.categories.join(" / ")}` : "직접 정의한 축: 없음";
+  const list = papers
+    .map((p) => `[${p.id}] ${p.title}${p.year ? ` (${p.year})` : ""}\n초록: ${p.abstract ? p.abstract.slice(0, 700) : "(없음)"}`)
+    .join("\n\n");
+  return `소주제 목록: ${subtopics.join(" / ")}\n${axis}\n\n논문:\n${list}`;
+}

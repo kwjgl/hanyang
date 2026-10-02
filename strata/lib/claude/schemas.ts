@@ -28,3 +28,17 @@ export const ClassifySchema = z.object({
   suggested_field: z.string(),
 });
 export type ClassifyResult = z.infer<typeof ClassifySchema>;
+
+export const GapSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      subtopic: z.string().describe("소주제 목록의 이름 그대로, 맞는 것이 없으면 '해당 없음'"),
+      // 목록 밖 값이 하나 섞여도 묶음 전체가 실패하지 않도록 글자로 받고, 서버에서 목록에 있는 것만 남긴다
+      levels: z.array(z.string()).describe(`대상 학교급: ${LEVELS.join(", ")} 중에서`),
+      method: z.string().describe(`연구 방법: ${STUDY_TYPES.join(", ")} 중 하나`),
+      custom: z.string().describe("직접 정의 축의 범주 이름 그대로, 축이 없거나 맞는 것이 없으면 빈 문자열"),
+    }),
+  ),
+});
+export type GapResult = z.infer<typeof GapSchema>;

@@ -5,6 +5,7 @@ import type { ProjectData } from "@/lib/server/load";
 import { Avatar, FieldTags } from "../bits";
 import { CompareTab } from "./CompareTab";
 import { DashboardTab } from "./DashboardTab";
+import { GapTab } from "./GapTab";
 import { GraphTab } from "./GraphTab";
 import { ProjectEditor } from "./ProjectEditor";
 import { ResultsTab } from "./ResultsTab";
@@ -26,7 +27,7 @@ export function ProjectView({ data, initialResult, alert }: { data: ProjectData;
   useEffect(() => {
     if (alert) api("/api/alerts/read", { body: { searchId: alert.searchId } }).catch(() => {});
   }, [alert]);
-  const [tab, setTab] = useState<"results" | "table" | "dash" | "graph">(alert || initialResult || !rows.length ? "results" : "table");
+  const [tab, setTab] = useState<"results" | "table" | "dash" | "graph" | "gap">(alert || initialResult || !rows.length ? "results" : "table");
   const cites = useCitations(
     project.id,
     rows.map((r) => r.paper.id),
@@ -112,6 +113,9 @@ export function ProjectView({ data, initialResult, alert }: { data: ProjectData;
         <button className="ptab" role="tab" aria-selected={tab === "graph"} onClick={() => setTab("graph")}>
           관계도
         </button>
+        <button className="ptab" role="tab" aria-selected={tab === "gap"} onClick={() => setTab("gap")}>
+          공백 지도
+        </button>
       </div>
       <div hidden={tab !== "results"}>
         <ResultsTab s={s} data={data} />
@@ -128,6 +132,17 @@ export function ProjectView({ data, initialResult, alert }: { data: ProjectData;
         />
       </div>
       <div hidden={tab !== "dash"}>{tab === "dash" && <DashboardTab data={data} cites={cites} onShowCore={showCore} />}</div>
+      <div hidden={tab !== "gap"}>
+        {tab === "gap" && (
+          <GapTab
+            data={data}
+            onSearch={(q) => {
+              setTab("results");
+              s.runSearch({ query: q });
+            }}
+          />
+        )}
+      </div>
       <div hidden={tab !== "graph"}>{tab === "graph" && <GraphTab data={data} cites={cites} onShowCore={showCore} />}</div>
     </>
   );

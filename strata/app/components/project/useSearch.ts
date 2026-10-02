@@ -64,11 +64,14 @@ export function useSearch(projectId: string, defaultQuery: string, initial?: Sea
   const running = useRef(0);
 
   const runSearch = useCallback(
-    async (opts: { expand?: boolean } = {}) => {
-      const q = query.trim();
+    async (opts: { expand?: boolean; query?: string } = {}) => {
+      const q = (opts.query ?? query).trim();
+      if (opts.query !== undefined) setQuery(opts.query);
       if (!q) return toast("검색어를 입력해 주세요");
       setRelated(null);
-      let terms = chips.filter((c) => c.on).map((c) => c.text);
+      // 다른 화면(공백 지도 등)에서 새 검색어로 부르면 예전 검색어의 확장 칩은 쓰지 않는다
+      let terms = opts.query !== undefined && expandedFor !== q ? [] : chips.filter((c) => c.on).map((c) => c.text);
+      if (opts.query !== undefined && expandedFor !== q) setChips([]);
       const shouldExpand = opts.expand ?? (autoExpand && expandedFor !== q);
       if (shouldExpand) {
         setPhase("expanding");

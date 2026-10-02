@@ -36,6 +36,8 @@ beforeAll(async () => {
   // 알림 마이그레이션은 두 번 실행해도 괜찮아야 한다 (사용자가 다시 붙여 넣을 수 있다)
   await db.exec(readFileSync("supabase/migrations/20261003000000_alerts.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261003000000_alerts.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261004000000_gapmaps.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261004000000_gapmaps.sql", "utf8"));
   await db.exec(`
     insert into auth.users (id, email, raw_user_meta_data) values
       ('${A}', 'a@lab.kr', '{"full_name":"김에이"}'), ('${B}', 'b@lab.kr', '{}');
@@ -43,6 +45,11 @@ beforeAll(async () => {
 }, 60_000);
 
 describe("schema", () => {
+  it("shows the same gap-map SQL in the app as the migration file", async () => {
+    const { GAPMAPS_SQL } = await import("@/lib/gapmap-sql");
+    expect(GAPMAPS_SQL).toBe(readFileSync("supabase/migrations/20261004000000_gapmaps.sql", "utf8"));
+  });
+
   it("shows the same alerts SQL in the app as the migration file", async () => {
     const { ALERTS_SQL } = await import("@/lib/alerts-sql");
     expect(ALERTS_SQL).toBe(readFileSync("supabase/migrations/20261003000000_alerts.sql", "utf8"));
@@ -148,5 +155,14 @@ describe("row level security", () => {
     // 편집 권한이 있어야 확인 시각을 남길 수 있다
     const upd = await as(B, () => q("update public.searches set checked_at = now() where id = $1 returning id", [search]));
     expect(upd.rows).toHaveLength(0);
+  });
+  it("lets members read gap maps but only editors write them", async () => {
+    const id = (await as(C, () => q("insert into public.gap_maps (project_id, items) values ($1, '[]') returning id", [project]))).rows[0].id;
+    expect((await as(B, () => q("select id from public.gap_maps"))).rows).toHaveLength(1);
+    await expect(as(B, () => q("insert into public.gap_maps (project_id) values ($1)", [project]))).rejects.toThrow();
+    const upd = await as(B, () => q("update public.gap_maps set saved = true where id = $1 returning id", [id]));
+    expect(upd.rows).toHaveLength(0);
+    await as(A, () => q("update public.gap_maps set saved = true, label = '10월 저장본' where id = $1", [id]));
+    expect((await as(C, () => q("select saved from public.gap_maps where id = $1", [id]))).rows[0].saved).toBe(true);
   });
 });
