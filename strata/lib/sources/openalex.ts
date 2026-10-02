@@ -119,10 +119,43 @@ export async function openAlexReferences(openalexId: string): Promise<Candidate[
   const out: Candidate[] = [];
   for (let i = 0; i < ids.length; i += 50) {
     const p = withAuth(
-      new URLSearchParams({ filter: `openalex_id:${ids.slice(i, i + 50).join("|")}`, "per-page": "50", select: SELECT }),
+      new URLSearchParams({ filter: `openalex:${ids.slice(i, i + 50).join("|")}`, "per-page": "50", select: SELECT }),
     );
     const data = await fetchJson<{ results: OpenAlexWork[] }>("OpenAlex", `${BASE}/works?${p}`);
     out.push(...(data.results ?? []).map(parseOpenAlexWork).filter((c): c is Candidate => !!c));
   }
   return out.sort((a, b) => (b.citations ?? 0) - (a.citations ?? 0));
+}
+
+export interface WorkWithRefs {
+  candidate: Candidate;
+  /** 참고문헌의 OpenAlex ID (W…) */
+  refs: string[];
+}
+
+/**
+ * OpenAlex ID나 DOI로 여러 논문을 한꺼번에 가져온다 (50개씩 묶어서 요청).
+ * withRefs면 각 논문의 참고문헌 목록도 함께 받는다.
+ */
+export async function openAlexWorks(q: { ids?: string[]; dois?: string[] }, withRefs = false): Promise<WorkWithRefs[]> {
+  const batches: string[] = [];
+  const ids = [...new Set(q.ids ?? [])];
+  const dois = [...new Set(q.dois ?? [])];
+  for (let i = 0; i < ids.length; i += 50) batches.push(`openalex:${ids.slice(i, i + 50).join("|")}`);
+  for (let i = 0; i < dois.length; i += 50) batches.push(`doi:${dois.slice(i, i + 50).join("|")}`);
+  const select = withRefs ? `${SELECT},referenced_works` : SELECT;
+  const pages = await Promise.all(
+    batches.map((filter) =>
+      fetchJson<{ results: (OpenAlexWork & { referenced_works?: string[] })[] }>(
+        "OpenAlex",
+        `${BASE}/works?${withAuth(new URLSearchParams({ filter, "per-page": "50", select }))}`,
+      ),
+    ),
+  );
+  const out: WorkWithRefs[] = [];
+  for (const w of pages.flatMap((p) => p.results ?? [])) {
+    const candidate = parseOpenAlexWork(w);
+    if (candidate) out.push({ candidate, refs: (w.referenced_works ?? []).map((u) => u.replace("https://openalex.org/", "")) });
+  }
+  return out;
 }

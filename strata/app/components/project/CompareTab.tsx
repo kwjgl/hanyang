@@ -7,11 +7,23 @@ import { tierLabel, tierOf } from "@/lib/impact";
 import type { ProjectData, TableRow } from "@/lib/server/load";
 import type { Candidate, ReadStatus } from "@/lib/types";
 import { FieldTags, firstAuthor, STATUS_LABEL, StatusPill, SummaryView, Tier } from "../bits";
+import { CoreList } from "./CoreList";
+import type { Citations } from "./useCitations";
 
 type Group = "sub" | "field" | "year";
 type RelatedKind = "citedBy" | "references" | "similar";
 
-export function CompareTab({ data, onRelated }: { data: ProjectData; onRelated: (k: RelatedKind, c: Pick<Candidate, "title" | "doi" | "ids">) => void }) {
+export function CompareTab({
+  data,
+  onRelated,
+  cites,
+  onShowCore,
+}: {
+  data: ProjectData;
+  onRelated: (k: RelatedKind, c: Pick<Candidate, "title" | "doi" | "ids">) => void;
+  cites: Citations;
+  onShowCore: () => void;
+}) {
   const { rows, subtopics, fields, project } = data;
   const [group, setGroup] = useState<Group>("sub");
   const [fieldFilter, setFieldFilter] = useState<string | null>(null);
@@ -210,6 +222,7 @@ export function CompareTab({ data, onRelated }: { data: ProjectData; onRelated: 
         </table>
       </div>
       <p className="hint">행을 누르면 요약 전문, 원문 초록, 메모, 인용 추적이 열립니다.</p>
+      <CoreList data={data} cites={cites} onShowCore={onShowCore} />
     </>
   );
 }

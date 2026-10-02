@@ -385,3 +385,5 @@ textarea.field-in{width:100%;min-height:70px;resize:vertical}
 a.acct{text-decoration:none;color:var(--ink)}
 a.acct[aria-current="page"]{box-shadow:0 0 0 2px var(--accent-soft)}
 @media (max-width:860px){.navlink{white-space:nowrap;border:1px solid var(--line)}}
+/* 2단계 — 대시보드 · 핵심 문헌 후보 */
+.core .who{color:var(--muted);font-size:12px;margin-top:2px}

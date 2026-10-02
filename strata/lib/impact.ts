@@ -29,7 +29,7 @@ export function tierLabel(tier: Tier, pct?: number | null): string {
     case "other":
       return `상위 ${Math.max(1, Math.round(100 - (pct ?? 0)))}%`;
     case "recent":
-      return "최근 논문 · 판단 이름";
+      return "최근 논문 · 아직 판단 어려움";
     default:
       return "분야 보정 지표 없음";
   }
