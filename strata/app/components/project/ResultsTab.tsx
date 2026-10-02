@@ -188,6 +188,12 @@ export function ResultsTab({ s, data }: { s: SearchState; data: ProjectData }) {
           ) : (
             !s.related && "검색창에 주제를 넣고 찾기를 누르세요."
           )}
+          {s.result && !s.related && s.phase === "idle" && s.result.warnings.length > 0 && (
+            <span className="warn-line">
+              ⚠ 이번 검색에서 건너뛴 출처: {s.result.warnings.join(" · ")}. 다시 찾으면 될 때가 많습니다
+              {s.result.warnings.some((w) => w.startsWith("Crossref")) ? " (국내 학술지 논문이 적게 나올 수 있습니다)" : ""}.
+            </span>
+          )}
         </p>
         <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
           {s.result && !s.related && canEdit && (

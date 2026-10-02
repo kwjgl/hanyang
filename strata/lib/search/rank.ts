@@ -54,6 +54,8 @@ export const EXPANSION_WEIGHT = 0.5;
  * - 검색어가 제목에 구절 그대로 들어 있나
  * - 검색어 낱말이 제목(과 초록)에 얼마나 들어 있나
  * - 해마다 받은 피인용 수 (오래 많이 인용된 고전이 위로)
+ * - 한국어로 찾으면 한국어 논문을 위로
+ * - 검색어 낱말이 제목·초록에 절반도 없으면 아래로
  * - 연구실 분야(교육·심리·언어)가 아닌 논문은 맨 뒤로
  * 원래 검색어가 AI가 넓힌 검색어보다 무겁다.
  */
@@ -67,20 +69,29 @@ export function rerank(items: Candidate[], terms: string[], now = new Date().get
       return { words: queryWords(stripped), phrases, weight: i === 0 ? 1 : EXPANSION_WEIGHT };
     })
     .filter((s) => s.words.length);
+  // 한국어로 찾으면 한국어 논문을 먼저 보고 싶어 한다 (구글 학술검색도 그렇게 보여 준다)
+  const koQuery = hasHangul(terms[0]);
   return items
     .filter((c) => !isJunk(c))
     .map((c) => {
       let match = 0;
       let phrase = 0;
+      let best = 0;
       for (const s of sets) {
-        match = Math.max(match, s.weight * (coverage(s.words, c.title) + 0.3 * coverage(s.words, c.abstract)));
+        const t = coverage(s.words, c.title);
+        const a = coverage(s.words, c.abstract);
+        best = Math.max(best, t, a);
+        match = Math.max(match, s.weight * (t + 0.3 * a));
         phrase = Math.max(phrase, s.weight * (hasPhrase(s.phrases, c.title) ? 1 : hasPhrase(s.phrases, c.abstract) ? 0.2 : 0));
       }
+      // 어느 검색어로 봐도 낱말의 절반도 제목·초록에 없으면, 출처가 느슨하게 걸러 온 것이다 (특히 한국어 검색)
+      const weak = sets.length && best < 0.5 ? 0.015 : 0;
+      const korean = koQuery && (hasHangul(c.title) || hasHangul(c.abstract)) ? 0.02 : 0;
       const age = Math.max(1, now - (c.year ?? now) + 1);
       const perYear = (c.citations ?? 0) / age;
       // 다른 분야(의학·공학 등)로 판별된 논문은 맨 뒤로 보낸다. 화면에서는 기본으로 숨긴다.
       const offDomain = c.domain === "out" ? 0.05 : 0;
-      const score = (c.score ?? 0) + 0.016 * phrase + 0.016 * match + 0.005 * Math.min(3, Math.log10(1 + perYear)) - offDomain;
+      const score = (c.score ?? 0) + 0.016 * phrase + 0.016 * match + 0.005 * Math.min(3, Math.log10(1 + perYear)) + korean - weak - offDomain;
       return { ...c, score: Math.round(score * 10000) / 10000 };
     })
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));

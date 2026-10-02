@@ -269,7 +269,7 @@ describe("source paging and totals", () => {
   it("Crossref: offset from page and total-results", async () => {
     const urls = stub({ message: { "total-results": 800, items: [crossrefItem] } });
     const r = await searchCrossref("디지털 평가", { page: 2 });
-    expect(new URL(urls[0]).searchParams.get("offset")).toBe("60");
+    expect(new URL(urls[0]).searchParams.get("offset")).toBe("40");
     expect(r.total).toBe(800);
   });
 });

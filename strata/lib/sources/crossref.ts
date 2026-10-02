@@ -59,10 +59,11 @@ export function parseCrossrefItem(it: CrossrefItem): Candidate | null {
 }
 
 export async function searchCrossref(term: string, opts: { rows?: number; yearFrom?: number; page?: number } = {}): Promise<SearchPage> {
-  const rows = opts.rows ?? 60;
+  // 많이 달라고 하면 Crossref가 느려서 건너뛰게 된다 (국내 논문의 주 통로라 놓치면 안 된다)
+  const rows = opts.rows ?? 40;
   const params = new URLSearchParams({ "query.bibliographic": term, rows: String(rows), offset: String(((opts.page ?? 1) - 1) * rows), select: SELECT });
   if (opts.yearFrom) params.set("filter", `from-pub-date:${opts.yearFrom}`);
-  const data = await fetchJson<{ message?: { "total-results"?: number; items?: CrossrefItem[] } }>("Crossref", `${BASE}/works?${params}${mailto()}`);
+  const data = await fetchJson<{ message?: { "total-results"?: number; items?: CrossrefItem[] } }>("Crossref", `${BASE}/works?${params}${mailto()}`, {}, 25_000);
   return { items: (data.message?.items ?? []).map(parseCrossrefItem).filter((c): c is Candidate => !!c), total: data.message?.["total-results"] ?? null };
 }
 

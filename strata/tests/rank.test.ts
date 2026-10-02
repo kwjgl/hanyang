@@ -164,3 +164,30 @@ describe("다른 분야 논문 거르기 (digital assessment 사례)", () => {
     expect(out.slice(-2).sort()).toEqual(["Pelvic floor maximal strength using vaginal digital assessment", "edgeR: digital gene expression assessment"].sort());
   });
 });
+
+describe("국문 검색 (디지털 읽기 평가 사례)", () => {
+  it("한국어로 찾으면 한국어 논문이 위로, 검색어가 거의 없는 느슨한 결과는 아래로", () => {
+    const terms = ["디지털 읽기 평가", "computer-based reading assessment"];
+    const items = [
+      // OpenAlex가 한국어 검색에서 느슨하게 높이 올린 영문 논문 (검색어 낱말이 거의 없음)
+      c("A Study on Learners' Response to Online College English Class as General Education", { score: 0.0164, citations: 22, year: 2020 }),
+      // 넓힌 영어 검색어로 찾은 해외 논문
+      c("Comparability of Computer-Based and Paper-and-Pencil Testing in K-12 Reading Assessments", { score: 0.0161, citations: 190, year: 2007 }),
+      // 국문 논문
+      c("국가수준 학업성취도 평가와 PISA 2009(PRA와 DRA) 연계를 통한 우리나라 학생들의 읽기 성취 특성 분석", {
+        score: 0.012,
+        citations: 0,
+        year: 2013,
+        abstract: "인쇄매체 읽기 평가(PRA)와 디지털 읽기 평가(DRA)의 결과를 활용하여",
+      }),
+    ];
+    const out = rerank(items, terms, 2026).map((x) => x.title);
+    expect(out[0]).toMatch(/^국가수준/);
+    expect(out[2]).toMatch(/^A Study on Learners/);
+  });
+
+  it("영어로 찾을 때는 한국어 논문을 따로 올리지 않는다", () => {
+    const out = rerank([c("디지털 평가 연구", { score: 0.016 }), c("Digital assessment research", { score: 0.016 })], ["digital assessment"], 2026);
+    expect(out[0].title).toBe("Digital assessment research");
+  });
+});
