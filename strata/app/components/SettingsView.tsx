@@ -1,5 +1,5 @@
 "use client";
-import type { KciTestRow } from "@/app/api/kci/test/route";
+import type { KciTestResult } from "@/app/api/kci/test/route";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, errMsg, toast } from "@/lib/client";
@@ -198,12 +198,12 @@ export function SettingsView(props: {
 function KciSection() {
   const [q, setQ] = useState("디지털 읽기 평가");
   const [busy, setBusy] = useState(false);
-  const [res, setRes] = useState<{ ready: boolean; rows: KciTestRow[] } | null>(null);
+  const [res, setRes] = useState<KciTestResult | null>(null);
   const run = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
-      setRes(await api<{ ready: boolean; rows: KciTestRow[] }>(`/api/kci/test?q=${encodeURIComponent(q)}`));
+      setRes(await api<KciTestResult>(`/api/kci/test?q=${encodeURIComponent(q)}`));
     } catch (err) {
       toast(errMsg(err));
     } finally {
@@ -219,7 +219,7 @@ function KciSection() {
       <form className="line" onSubmit={run}>
         <input type="text" value={q} onChange={(e) => setQ(e.target.value)} aria-label="KCI 확인용 검색어" />
         <button className="btn" disabled={busy || !q.trim()}>
-          {busy ? "확인 중…" : "연결 확인"}
+          {busy ? "확인 중… (최대 1분)" : "연결 확인"}
         </button>
       </form>
       {res && !res.ready && (
@@ -227,13 +227,23 @@ function KciSection() {
           아직 KCI 인증키가 설정되지 않았습니다. Vercel → Settings → Environment Variables에 <code>KCI_SERVICE_KEY</code>를 넣고 Redeploy 해 주세요.
         </p>
       )}
+      {res?.ready && (
+        <p className="meta" style={{ marginTop: 10 }}>
+          서버 위치: {res.region ?? "알 수 없음"} · Supabase 왕복 {res.dbMs ?? "?"}ms · KCI 기본 연결:{" "}
+          {res.ping?.ok ? `됨 (${((res.ping.ms ?? 0) / 1000).toFixed(1)}초, 전체 ${res.ping.total?.toLocaleString() ?? "?"}편)` : `안 됨 — ${res.ping?.error} (${((res.ping?.ms ?? 0) / 1000).toFixed(1)}초)`}
+        </p>
+      )}
       {res?.rows.map((r) => (
         <div key={r.query} style={{ marginTop: 12 }}>
           <b style={{ fontSize: 13 }}>“{r.query}”</b>{" "}
           {r.error ? (
-            <span style={{ color: "var(--warn)", fontSize: 13 }}>— {r.error}</span>
+            <span style={{ color: "var(--warn)", fontSize: 13 }}>
+              — {r.error} ({(r.ms / 1000).toFixed(1)}초)
+            </span>
           ) : (
-            <span className="meta">— 제목에 이 말이 들어간 논문 {r.total?.toLocaleString() ?? "?"}편</span>
+            <span className="meta">
+              — 제목에 이 말이 들어간 논문 {r.total?.toLocaleString() ?? "?"}편 ({(r.ms / 1000).toFixed(1)}초)
+            </span>
           )}
           <ul className="mini-list" style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
             {r.titles.map((t, i) => (

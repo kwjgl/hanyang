@@ -99,9 +99,17 @@ export function parseKciXml(xml: string): SearchPage {
 }
 
 /** 제목(논문명)에 검색어가 들어간 KCI 논문 */
-export async function searchKci(term: string, opts: { page?: number; perPage?: number } = {}): Promise<SearchPage> {
+export async function searchKci(term: string, opts: { page?: number; perPage?: number; timeoutMs?: number } = {}): Promise<SearchPage> {
   const key = kciKey();
   if (!key) return { items: [], total: null };
   const params = new URLSearchParams({ serviceKey: key, pageNo: String(opts.page ?? 1), recordCnt: String(opts.perPage ?? 30), artiNm: term });
-  return parseKciXml(await fetchText("KCI", `${BASE}?${params}`, 20_000));
+  return parseKciXml(await fetchText("KCI", `${BASE}?${params}`, opts.timeoutMs ?? 20_000));
+}
+
+/** 검색어 없이 1건만 물어본다 (연결 확인용) */
+export async function kciPing(timeoutMs = 20_000): Promise<SearchPage> {
+  const key = kciKey();
+  if (!key) return { items: [], total: null };
+  const params = new URLSearchParams({ serviceKey: key, pageNo: "1", recordCnt: "1" });
+  return parseKciXml(await fetchText("KCI", `${BASE}?${params}`, timeoutMs));
 }
