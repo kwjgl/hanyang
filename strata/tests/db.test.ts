@@ -38,6 +38,8 @@ beforeAll(async () => {
   await db.exec(readFileSync("supabase/migrations/20261003000000_alerts.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261004000000_gapmaps.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261004000000_gapmaps.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261005000000_writing.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261005000000_writing.sql", "utf8"));
   await db.exec(`
     insert into auth.users (id, email, raw_user_meta_data) values
       ('${A}', 'a@lab.kr', '{"full_name":"김에이"}'), ('${B}', 'b@lab.kr', '{}');
@@ -45,6 +47,11 @@ beforeAll(async () => {
 }, 60_000);
 
 describe("schema", () => {
+  it("shows the same writing SQL in the app as the migration file", async () => {
+    const { WRITING_SQL } = await import("@/lib/writing-sql");
+    expect(WRITING_SQL).toBe(readFileSync("supabase/migrations/20261005000000_writing.sql", "utf8"));
+  });
+
   it("shows the same gap-map SQL in the app as the migration file", async () => {
     const { GAPMAPS_SQL } = await import("@/lib/gapmap-sql");
     expect(GAPMAPS_SQL).toBe(readFileSync("supabase/migrations/20261004000000_gapmaps.sql", "utf8"));
@@ -164,5 +171,13 @@ describe("row level security", () => {
     expect(upd.rows).toHaveLength(0);
     await as(A, () => q("update public.gap_maps set saved = true, label = '10월 저장본' where id = $1", [id]));
     expect((await as(C, () => q("select saved from public.gap_maps where id = $1", [id]))).rows[0].saved).toBe(true);
+  });
+  it("shares drafts and consultations with members, lets only editors write", async () => {
+    const d = (await as(C, () => q("insert into public.drafts (project_id, body) values ($1, '첫 문단') returning id", [project]))).rows[0].id;
+    expect((await as(B, () => q("select body from public.drafts where id = $1", [d]))).rows[0].body).toBe("첫 문단");
+    await expect(as(B, () => q("insert into public.drafts (project_id) values ($1)", [project]))).rejects.toThrow();
+    expect((await as(B, () => q("update public.drafts set body = 'x' where id = $1 returning id", [d]))).rows).toHaveLength(0);
+    await as(A, () => q("insert into public.consults (project_id, messages) values ($1, '[]')", [project]));
+    expect((await as(B, () => q("select id from public.consults"))).rows).toHaveLength(1);
   });
 });

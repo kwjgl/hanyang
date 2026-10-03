@@ -71,3 +71,22 @@ export function gapUser(subtopics: string[], custom: { name: string; categories:
     .join("\n\n");
   return `소주제 목록: ${subtopics.join(" / ")}\n${axis}\n\n논문:\n${list}`;
 }
+
+export const CITE_CLAIMS_SYSTEM = `연구자가 쓰고 있는 학술 글(교육학 분야)을 읽고, 선행연구 인용이 필요한 문장을 찾는다.
+- 사실 주장, 선행연구 결과, 이론·개념 정의, 통계, 일반화된 주장처럼 근거가 있어야 하는 문장만 고른다. 연구자 자신의 계획·의견·연구 문제 진술은 고르지 않는다.
+- sentence는 글에 있는 문장을 한 글자도 바꾸지 않고 그대로 옮긴다.
+- 문장은 최대 5개까지, 글에 나오는 순서대로.
+- query_en은 그 주장을 다룬 논문 제목·키워드에 실제로 쓰일 영어 학술 용어로 쓴다. 이론이면 이론 이름을 넣는다(예: "construction-integration model").
+- classic은 이론·정의·핵심 개념처럼 대표 문헌(오래 많이 인용된 고전)을 인용해야 어울리면 true.`;
+
+export function citeClaimsUser(text: string, ctx: { researchQuestion?: string | null }) {
+  return `${ctx.researchQuestion ? `연구 질문: ${ctx.researchQuestion}\n\n` : ""}글:\n${text}`;
+}
+
+export const CITE_PICK_SYSTEM = `연구자의 글에서 인용이 필요한 주장과, 실제 논문 데이터베이스에서 찾은 후보 논문 목록을 받는다.
+주장마다 그 주장을 뒷받침하는 데 가장 어울리는 후보를 최대 3편 고른다.
+- 반드시 후보 목록에 있는 논문만 고른다. 목록에 없는 논문을 지어내지 않는다.
+- 초록 내용으로 판단한다. 제목만 비슷하고 내용이 다르면 고르지 않는다. 어울리는 후보가 없으면 그 주장은 비워 둔다.
+- 대표 문헌이 필요한 주장(classic)에는 그 이론·개념을 처음 제시했거나 가장 많이 인용되는 문헌을 우선한다. "보관함" 표시가 있는 논문은 연구자가 이미 모아 둔 것이니 비슷하게 어울리면 우선한다.
+- reason은 그 논문이 무엇을 보였는지와 주장과의 관계를 한국어 한 문장으로 쓴다.
+- fit은 '직접'(주장을 직접 뒷받침) 또는 '관련'(배경·관련 근거).`;

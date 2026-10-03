@@ -42,3 +42,30 @@ export const GapSchema = z.object({
   ),
 });
 export type GapResult = z.infer<typeof GapSchema>;
+
+/** 글에서 근거(인용)가 필요한 문장 찾기 */
+export const CiteClaimsSchema = z.object({
+  claims: z.array(
+    z.object({
+      sentence: z.string().describe("글에 있는 문장을 한 글자도 바꾸지 않고 그대로"),
+      claim: z.string().describe("이 문장이 하는 주장을 짧게"),
+      query_en: z.string().describe("이 주장을 뒷받침할 논문을 찾는 영어 학술 검색어 (2~6단어)"),
+      query_ko: z.string().describe("같은 뜻의 한국어 검색어, 필요 없으면 빈 문자열"),
+      classic: z.boolean().describe("이론·정의·개념처럼 대표 문헌(고전)을 인용해야 하는 주장이면 true"),
+    }),
+  ),
+});
+export type CiteClaims = z.infer<typeof CiteClaimsSchema>;
+
+/** 후보 논문 중 주장마다 어울리는 문헌 고르기 (후보 밖의 논문은 고를 수 없다) */
+export const CitePickSchema = z.object({
+  picks: z.array(
+    z.object({
+      claim: z.number().describe("주장 번호"),
+      id: z.string().describe("후보 번호 그대로"),
+      reason: z.string().describe("이 논문이 그 주장을 뒷받침하는 이유 한 문장 (초록 내용 근거)"),
+      fit: z.string().describe("'직접' (주장을 직접 뒷받침) 또는 '관련' (배경·관련 근거)"),
+    }),
+  ),
+});
+export type CitePicks = z.infer<typeof CitePickSchema>;

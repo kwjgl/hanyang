@@ -6,6 +6,7 @@ import { Avatar, FieldTags } from "../bits";
 import { CompareTab } from "./CompareTab";
 import { DashboardTab } from "./DashboardTab";
 import { GapTab } from "./GapTab";
+import { WriteTab } from "./WriteTab";
 import { GraphTab } from "./GraphTab";
 import { ProjectEditor } from "./ProjectEditor";
 import { ResultsTab } from "./ResultsTab";
@@ -27,7 +28,7 @@ export function ProjectView({ data, initialResult, alert }: { data: ProjectData;
   useEffect(() => {
     if (alert) api("/api/alerts/read", { body: { searchId: alert.searchId } }).catch(() => {});
   }, [alert]);
-  const [tab, setTab] = useState<"results" | "table" | "dash" | "graph" | "gap">(alert || initialResult || !rows.length ? "results" : "table");
+  const [tab, setTab] = useState<"results" | "table" | "write" | "dash" | "graph" | "gap">(alert || initialResult || !rows.length ? "results" : "table");
   const cites = useCitations(
     project.id,
     rows.map((r) => r.paper.id),
@@ -107,6 +108,9 @@ export function ProjectView({ data, initialResult, alert }: { data: ProjectData;
         <button className="ptab" role="tab" aria-selected={tab === "table"} onClick={() => setTab("table")}>
           비교표<span className="n">{rows.length}</span>
         </button>
+        <button className="ptab" role="tab" aria-selected={tab === "write"} onClick={() => setTab("write")}>
+          글쓰기
+        </button>
         <button className="ptab" role="tab" aria-selected={tab === "dash"} onClick={() => setTab("dash")}>
           대시보드
         </button>
@@ -132,6 +136,7 @@ export function ProjectView({ data, initialResult, alert }: { data: ProjectData;
         />
       </div>
       <div hidden={tab !== "dash"}>{tab === "dash" && <DashboardTab data={data} cites={cites} onShowCore={showCore} />}</div>
+      <div hidden={tab !== "write"}>{tab === "write" && <WriteTab data={data} />}</div>
       <div hidden={tab !== "gap"}>
         {tab === "gap" && (
           <GapTab
