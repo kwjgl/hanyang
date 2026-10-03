@@ -1,3 +1,4 @@
+import { isClassic } from "@/lib/cite";
 import { CiteClaimsSchema, CitePickSchema } from "@/lib/claude/schemas";
 import { CITE_CLAIMS_SYSTEM, CITE_PICK_SYSTEM, citeClaimsUser } from "@/lib/claude/prompts";
 import { mergeAndRank } from "@/lib/search/merge";
@@ -35,12 +36,25 @@ const MAX_CLAIMS = 5;
 const SAVED_PER_CLAIM = 4;
 const FOUND_PER_CLAIM = 6;
 
-/** 대표 문헌: 출판 8년 넘게 지나 피인용 300회 이상, 또는 분야·연도 보정 상위 1% */
-export function isClassic(c: Pick<Candidate, "citations" | "year" | "impact">, now = new Date().getFullYear()) {
-  return ((c.citations ?? 0) >= 300 && !!c.year && now - c.year >= 8) || (c.impact?.pct ?? 0) >= 99;
-}
+export { isClassic };
 
-type Saved = { paperId: string; candidate: Candidate; text: string };
+export type Saved = { paperId: string; candidate: Candidate; text: string };
+
+/** 이 프로젝트에 보관한 논문 (요약이 있으면 요약 내용까지 글로 묶어 둔다) */
+export async function savedPapers(supabase: Supa, projectId: string): Promise<Saved[]> {
+  const { data: pp } = await supabase.from("project_papers").select("paper:papers(*, summaries(data))").eq("project_id", projectId);
+  return ((pp ?? []) as unknown as { paper: (PaperRow & { summaries: { data: SummaryData } | { data: SummaryData }[] | null }) | null }[])
+    .filter((r) => r.paper)
+    .map((r) => {
+      const { summaries, ...paper } = r.paper!;
+      const s = Array.isArray(summaries) ? summaries[0]?.data : summaries?.data;
+      return {
+        paperId: paper.id,
+        candidate: toCandidate(paper as PaperRow),
+        text: [paper.title, paper.abstract, s?.one_line, s?.findings, s?.keywords?.join(" ")].filter(Boolean).join(" "),
+      };
+    });
+}
 
 /** 보관한 논문 중 이 주장과 낱말이 많이 겹치는 것 */
 export function matchSaved(saved: Saved[], terms: string[], limit = SAVED_PER_CLAIM): Saved[] {
@@ -121,21 +135,10 @@ export async function recommendCitations(supabase: Supa, userId: string, project
   const body = text.trim().slice(0, 4000);
   if (body.length < 20) throw new HttpError(400, "인용을 찾을 글이 너무 짧습니다. 한두 문장 이상 써 주세요.");
 
-  const [{ data: project }, { data: pp }] = await Promise.all([
+  const [{ data: project }, saved] = await Promise.all([
     supabase.from("projects").select("research_question").eq("id", projectId).single(),
-    supabase.from("project_papers").select("paper:papers(*, summaries(data))").eq("project_id", projectId),
+    savedPapers(supabase, projectId),
   ]);
-  const saved: Saved[] = ((pp ?? []) as unknown as { paper: (PaperRow & { summaries: { data: SummaryData } | { data: SummaryData }[] | null }) | null }[])
-    .filter((r) => r.paper)
-    .map((r) => {
-      const { summaries, ...paper } = r.paper!;
-      const s = Array.isArray(summaries) ? summaries[0]?.data : summaries?.data;
-      return {
-        paperId: paper.id,
-        candidate: toCandidate(paper as PaperRow),
-        text: [paper.title, paper.abstract, s?.one_line, s?.findings, s?.keywords?.join(" ")].filter(Boolean).join(" "),
-      };
-    });
 
   // 1) 인용이 필요한 문장
   const found = await runAi(supabase, userId, "cite", {

@@ -136,7 +136,15 @@ export function ProjectView({ data, initialResult, alert }: { data: ProjectData;
         />
       </div>
       <div hidden={tab !== "dash"}>{tab === "dash" && <DashboardTab data={data} cites={cites} onShowCore={showCore} />}</div>
-      <div hidden={tab !== "write"}>{tab === "write" && <WriteTab data={data} />}</div>
+      <div hidden={tab !== "write"}>{tab === "write" && (
+          <WriteTab
+            data={data}
+            onSearch={(q) => {
+              setTab("results");
+              s.runSearch({ query: q });
+            }}
+          />
+        )}</div>
       <div hidden={tab !== "gap"}>
         {tab === "gap" && (
           <GapTab

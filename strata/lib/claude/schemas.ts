@@ -69,3 +69,47 @@ export const CitePickSchema = z.object({
   ),
 });
 export type CitePicks = z.infer<typeof CitePickSchema>;
+
+/** 주제 상담 한 번의 답. 문헌은 이름만 대고, 실제 존재는 서버가 데이터베이스에서 확인한다 */
+export const ConsultSchema = z.object({
+  reply: z.string().describe("연구자에게 하는 답 (한국어, 상담하듯)"),
+  theories: z
+    .array(
+      z.object({
+        name: z.string().describe("이론·모형·개념 이름 (원어 병기)"),
+        summary: z.string().describe("핵심 내용 1~2문장"),
+        fit: z.string().describe("연구자의 주제에 어떻게 쓸 수 있는지 1~2문장"),
+        works: z
+          .array(
+            z.object({
+              author: z.string().describe("첫 저자 성 (한국인은 이름 전체)"),
+              year: z.number().describe("출판 연도, 모르면 0"),
+              title: z.string().describe("정확한 원제목 (번역하지 않는다)"),
+            }),
+          )
+          .describe("이 이론을 처음 제시했거나 가장 대표적인 문헌 1~3편. 확실한 것만"),
+        query_en: z.string().describe("이 이론으로 관련 연구를 찾을 영어 검색어"),
+        query_ko: z.string().describe("한국어 검색어, 필요 없으면 빈 문자열"),
+      }),
+    )
+    .describe("이번 답에서 새로 권하는 이론적 배경 0~4개"),
+  questions: z.array(z.string()).describe("연구자가 더 생각해 볼 질문 0~3개"),
+});
+export type ConsultResult = z.infer<typeof ConsultSchema>;
+
+/** 상담 내용을 이론적 배경 개요로. 문헌은 확인된 목록의 번호로만 단다 */
+export const OutlineSchema = z.object({
+  title: z.string().describe("개요 제목"),
+  sections: z.array(
+    z.object({
+      heading: z.string(),
+      points: z.array(
+        z.object({
+          text: z.string().describe("연구자가 풀어 쓸 한 문장 메모"),
+          ids: z.array(z.number()).describe("근거로 달 문헌 번호 (목록에 있는 번호만), 없으면 빈 배열"),
+        }),
+      ),
+    }),
+  ),
+});
+export type OutlineResult = z.infer<typeof OutlineSchema>;

@@ -1,4 +1,5 @@
 import { apa } from "@/lib/export";
+import type { Candidate } from "@/lib/types";
 
 /** 글에 넣은 인용 하나 (참고문헌 목록을 만들 때 쓴다) */
 export interface CitedRef {
@@ -94,4 +95,9 @@ export function paragraphAt(body: string, cursor: number): string {
   const start = body.lastIndexOf("\n\n", Math.max(0, cursor - 1));
   const end = body.indexOf("\n\n", cursor);
   return body.slice(start < 0 ? 0 : start + 2, end < 0 ? body.length : end).trim();
+}
+
+/** 대표 문헌: 출판 8년 넘게 지나 피인용 300회 이상, 또는 분야·연도 보정 상위 1% */
+export function isClassic(c: Pick<Candidate, "citations" | "year" | "impact">, now = new Date().getFullYear()) {
+  return ((c.citations ?? 0) >= 300 && !!c.year && now - c.year >= 8) || (c.impact?.pct ?? 0) >= 99;
 }
