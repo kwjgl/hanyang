@@ -1,10 +1,11 @@
 import type { Supa } from "@/lib/supabase/server";
 import type { Field, ProjectRole, ReadStatus, SummaryData } from "@/lib/types";
 import { monthUsage } from "./ai";
-import { unreadAlerts } from "./alerts";
+import { isMissingTable, unreadAlerts } from "./alerts";
 import { kciKey } from "@/lib/sources/kci";
 import { serpKey } from "@/lib/sources/scholar";
 import type { PaperRow } from "./papers";
+import type { PaperDetails } from "@/lib/details";
 
 export interface ShellProject {
   id: string;
@@ -86,6 +87,15 @@ export interface TableRow {
   notes: Note[];
   /** 같은 논문이 들어 있는 다른 프로젝트 이름 */
   elsewhere: string[];
+  /** 넣은 PDF와 상세 분석 (없으면 null) */
+  pdf: PdfInfo | null;
+}
+
+export interface PdfInfo {
+  chars: number;
+  fileName: string | null;
+  details: PaperDetails | null;
+  analyzedAt: string | null;
 }
 
 export interface ProjectData {
@@ -101,6 +111,8 @@ export interface ProjectData {
   kciReady: boolean;
   /** 구글 학술검색(SerpApi) 키가 설정되어 있는지 */
   scholarReady: boolean;
+  /** PDF 본문 표(paper_fulltexts)가 만들어져 있는지 */
+  fulltextReady: boolean;
 }
 
 type PPRow = {
@@ -127,12 +139,21 @@ export async function loadProject(supabase: Supa, userId: string, id: string): P
   ]);
   const rowsRaw = ((pp ?? []) as unknown as PPRow[]).filter((r) => r.paper);
   const paperIds = rowsRaw.map((r) => r.paper_id);
-  const [{ data: ups }, { data: elsewhere }] = await Promise.all([
+  const [{ data: ups }, { data: elsewhere }, ft] = await Promise.all([
     paperIds.length ? supabase.from("user_papers").select("paper_id, status, starred").eq("user_id", userId).in("paper_id", paperIds) : Promise.resolve({ data: [] }),
     paperIds.length
       ? supabase.from("project_papers").select("paper_id, project:projects(name)").in("paper_id", paperIds).neq("project_id", id)
       : Promise.resolve({ data: [] }),
+    // 본문(pages)은 무거워서 빼고 상태와 분석 결과만
+    supabase.from("paper_fulltexts").select("paper_id, chars, file_name, details, analyzed_at").in("paper_id", paperIds.length ? paperIds : ["00000000-0000-0000-0000-000000000000"]),
   ]);
+  const fulltextReady = !(isMissingTable(ft.error) || /paper_fulltexts/.test(ft.error?.message ?? ""));
+  const pdfs = new Map(
+    ((ft.data ?? []) as { paper_id: string; chars: number; file_name: string | null; details: PaperDetails | null; analyzed_at: string | null }[]).map((f) => [
+      f.paper_id,
+      { chars: f.chars, fileName: f.file_name, details: f.details, analyzedAt: f.analyzed_at },
+    ]),
+  );
   const name = new Map((profiles ?? []).map((p) => [p.id, { name: p.display_name ?? p.email ?? "", email: p.email ?? "" }]));
   const up = new Map(((ups ?? []) as { paper_id: string; status: ReadStatus; starred: boolean }[]).map((u) => [u.paper_id, u]));
   const other = new Map<string, string[]>();
@@ -151,6 +172,7 @@ export async function loadProject(supabase: Supa, userId: string, id: string): P
     meId: userId,
     kciReady: !!kciKey(),
     scholarReady: !!serpKey(),
+    fulltextReady,
     rows: rowsRaw.map((r) => {
       const { summaries, paper_fields, ...paper } = r.paper!;
       const u = up.get(r.paper_id);
@@ -166,6 +188,7 @@ export async function loadProject(supabase: Supa, userId: string, id: string): P
         starred: u?.starred ?? false,
         notes: ((notes ?? []) as (Note & { paper_id: string })[]).filter((n) => n.paper_id === r.paper_id),
         elsewhere: other.get(r.paper_id) ?? [],
+        pdf: pdfs.get(r.paper_id) ?? null,
       };
     }),
   };

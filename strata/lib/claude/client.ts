@@ -4,6 +4,8 @@ import type * as z from "zod/v4";
 import { costUsd } from "./pricing";
 
 export const SUMMARY_MODEL = "claude-sonnet-5-5";
+/** 긴 본문에서 정해진 항목을 뽑는 일처럼 깊은 판단이 덜 필요한 작업용 (입력 $1 / 출력 $5, 1M 토큰당) */
+export const CHEAP_MODEL = "claude-haiku-4-5";
 
 export class ClaudeError extends Error {
   constructor(
@@ -36,15 +38,16 @@ export async function callStructured<S extends z.ZodType>(opts: {
   const model = opts.model ?? SUMMARY_MODEL;
   const client = new Anthropic({ apiKey: opts.apiKey, maxRetries: 2, timeout: 60_000 });
   try {
-    const res = await client.beta.messages.parse({
-      model,
-      max_tokens: opts.maxTokens ?? 4000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      output_config: { effort: "low", format: betaZodOutputFormat(opts.schema) },
-      system: opts.system,
-      messages: [{ role: "user", content: opts.user }],
-    });
+    const base = { model, max_tokens: opts.maxTokens ?? 4000, system: opts.system, messages: [{ role: "user" as const, content: opts.user }] };
+    // Haiku 4.5는 effort와 server-side fallbacks를 받지 않는다 (보내면 400)
+    const res = model.startsWith("claude-haiku")
+      ? await client.beta.messages.parse({ ...base, output_config: { format: betaZodOutputFormat(opts.schema) } })
+      : await client.beta.messages.parse({
+          ...base,
+          betas: ["server-side-fallback-2026-07-01"],
+          fallbacks: "default",
+          output_config: { effort: "low", format: betaZodOutputFormat(opts.schema) },
+        });
     const usage: ClaudeUsage = {
       model: res.model,
       inputTokens: res.usage.input_tokens,

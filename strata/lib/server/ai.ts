@@ -41,8 +41,8 @@ async function record(supabase: Supa, userId: string, kind: string, u: ClaudeUsa
 export async function runAi<S extends z.ZodType>(
   supabase: Supa,
   userId: string,
-  kind: "expand" | "summary" | "classify" | "test" | "gapmap" | "cite" | "consult",
-  req: { system: string; user: string; schema: S; maxTokens?: number },
+  kind: "expand" | "summary" | "classify" | "test" | "gapmap" | "cite" | "consult" | "pdf",
+  req: { system: string; user: string; schema: S; maxTokens?: number; cheap?: boolean },
 ): Promise<z.infer<S>> {
   return (await runAiWithModel(supabase, userId, kind, req)).data;
 }
@@ -51,8 +51,8 @@ export async function runAi<S extends z.ZodType>(
 export async function runAiWithModel<S extends z.ZodType>(
   supabase: Supa,
   userId: string,
-  kind: "expand" | "summary" | "classify" | "test" | "gapmap" | "cite" | "consult",
-  req: { system: string; user: string; schema: S; maxTokens?: number },
+  kind: "expand" | "summary" | "classify" | "test" | "gapmap" | "cite" | "consult" | "pdf",
+  req: { system: string; user: string; schema: S; maxTokens?: number; cheap?: boolean },
 ): Promise<{ data: z.infer<S>; model: string }> {
   const { used, limit } = await monthUsage(supabase, userId);
   if (used >= limit) {

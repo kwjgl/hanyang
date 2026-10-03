@@ -1,5 +1,5 @@
 import * as z from "zod/v4";
-import { callStructured, ClaudeError, type ClaudeUsage } from "@/lib/claude/client";
+import { CHEAP_MODEL, callStructured, ClaudeError, type ClaudeUsage } from "@/lib/claude/client";
 import { costUsd } from "@/lib/claude/pricing";
 
 export * from "./meta";
@@ -175,11 +175,20 @@ async function callOpenAI<S extends z.ZodType>(apiKey: string, system: string, u
 export async function callAi<S extends z.ZodType>(
   provider: Provider,
   apiKey: string,
-  req: { system: string; user: string; schema: S; maxTokens?: number; /** 테스트용: 다시 시도 전 대기 */ waitMs?: number },
+  req: {
+    system: string;
+    user: string;
+    schema: S;
+    maxTokens?: number;
+    /** 저렴한 모델로 (Claude는 Haiku. Gemini Flash·GPT mini는 이미 저렴한 모델이라 그대로) */
+    cheap?: boolean;
+    /** 테스트용: 다시 시도 전 대기 */ waitMs?: number;
+  },
 ): Promise<{ data: z.infer<S>; usage: Usage }> {
   const maxTokens = req.maxTokens ?? 4000;
   // Gemini는 생각(thinking) 토큰도 출력 한도에 포함되므로 넉넉히 둔다
   if (provider === "gemini") return callGemini(apiKey, req.system, req.user, req.schema, Math.max(maxTokens, 8192), req.waitMs);
   if (provider === "openai") return callOpenAI(apiKey, req.system, req.user, req.schema, maxTokens);
-  return callStructured({ apiKey, ...req });
+  const { cheap, ...rest } = req;
+  return callStructured({ apiKey, ...rest, model: cheap ? CHEAP_MODEL : undefined });
 }

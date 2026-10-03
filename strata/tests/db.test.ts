@@ -40,6 +40,8 @@ beforeAll(async () => {
   await db.exec(readFileSync("supabase/migrations/20261004000000_gapmaps.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261005000000_writing.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261005000000_writing.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261006000000_fulltext.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261006000000_fulltext.sql", "utf8"));
   await db.exec(`
     insert into auth.users (id, email, raw_user_meta_data) values
       ('${A}', 'a@lab.kr', '{"full_name":"김에이"}'), ('${B}', 'b@lab.kr', '{}');
@@ -47,6 +49,11 @@ beforeAll(async () => {
 }, 60_000);
 
 describe("schema", () => {
+  it("shows the same full-text SQL in the app as the migration file", async () => {
+    const { FULLTEXT_SQL } = await import("@/lib/fulltext-sql");
+    expect(FULLTEXT_SQL).toBe(readFileSync("supabase/migrations/20261006000000_fulltext.sql", "utf8"));
+  });
+
   it("shows the same writing SQL in the app as the migration file", async () => {
     const { WRITING_SQL } = await import("@/lib/writing-sql");
     expect(WRITING_SQL).toBe(readFileSync("supabase/migrations/20261005000000_writing.sql", "utf8"));
@@ -179,5 +186,19 @@ describe("row level security", () => {
     expect((await as(B, () => q("update public.drafts set body = 'x' where id = $1 returning id", [d]))).rows).toHaveLength(0);
     await as(A, () => q("insert into public.consults (project_id, messages) values ($1, '[]')", [project]));
     expect((await as(B, () => q("select id from public.consults"))).rows).toHaveLength(1);
+  });
+  it("shows PDF text only to members of a project holding the paper, and lets only editors write it", async () => {
+    const D = "00000000-0000-0000-0000-00000000000d";
+    await q(`insert into auth.users (id, email) values ('${D}', 'd@lab.kr')`);
+    const paper = (await q("select id from public.papers where title = 'A paper'")).rows[0].id;
+    const other = (await q("insert into public.papers (title) values ('Not in any project') returning id")).rows[0].id;
+    await as(C, () => q("insert into public.paper_fulltexts (paper_id, pages, chars) values ($1, '[\"본문\"]', 2)", [paper]));
+    // 어느 프로젝트에도 없는 논문에는 넣을 수 없다
+    await expect(as(C, () => q("insert into public.paper_fulltexts (paper_id) values ($1)", [other]))).rejects.toThrow();
+    expect((await as(B, () => q("select chars from public.paper_fulltexts"))).rows).toEqual([{ chars: 2 }]);
+    expect((await as(D, () => q("select chars from public.paper_fulltexts"))).rows).toHaveLength(0);
+    expect((await as(B, () => q("update public.paper_fulltexts set chars = 9 returning chars"))).rows).toHaveLength(0);
+    await as(A, () => q("update public.paper_fulltexts set details = '{\"purpose\":\"x\"}' where paper_id = $1", [paper]));
+    expect((await as(C, () => q("select details->>'purpose' as p from public.paper_fulltexts"))).rows[0].p).toBe("x");
   });
 });

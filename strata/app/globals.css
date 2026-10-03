@@ -441,3 +441,31 @@ a.acct[aria-current="page"]{box-shadow:0 0 0 2px var(--accent-soft)}
 .chat-input textarea{flex:1;resize:vertical;font-size:14.5px;line-height:1.6}
 .chat-send{display:flex;flex-direction:column;gap:6px;align-items:stretch}
 .chat-send .chk{font-size:12.5px;white-space:nowrap}
+
+/* PDF 넣기·상세 분석 */
+.pdfdrop{border:1.5px dashed var(--line);border-radius:10px;padding:12px 14px;margin-top:12px;background:var(--surface)}
+.pdfdrop.compact{margin-top:0;padding:8px 10px}
+.pdfdrop.over{border-color:var(--accent);background:var(--accent-soft)}
+.pdfdrop-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.pdfjobs{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13px}
+.pdfjobs li{display:flex;gap:8px;align-items:baseline}
+.job-ic{width:16px;flex:none;text-align:center;font-weight:700}
+.job-done .job-ic{color:var(--good)}
+.job-error .job-ic{color:var(--warn)}
+.job-error .meta{color:var(--warn)}
+.pdfbadge{display:inline-block;margin-top:4px;font-size:11px;border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--muted)}
+.pdfbadge.done{border-color:transparent;background:var(--accent-soft);color:var(--ink)}
+.pg{display:inline-block;font-size:10.5px;color:var(--accent);border:1px solid var(--accent-soft);border-radius:4px;padding:0 4px;margin-left:2px;white-space:nowrap;font-family:var(--f-mono)}
+.stat{color:var(--info);font-size:12px}
+.cmp td .b{font-size:11px}
+.pdf-full{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg)}
+.pdf-full h4{margin:0 0 6px;font-size:13.5px}
+.pdf-full h4 + .lead{margin-top:0}
+.pdf-full .lead{font-family:var(--f-title);font-size:14.5px;margin:4px 0 8px}
+.pdf-full dl{display:grid;grid-template-columns:72px 1fr;gap:4px 10px;margin:0 0 8px;font-size:13px;line-height:1.6}
+.pdf-full dt{color:var(--muted);font-size:12px}
+.pdf-full dd{margin:0}
+.pdf-full dd ol{margin:0;padding-left:18px}
+.quotes{margin:4px 0 6px;padding-left:18px;font-size:13px;line-height:1.6}
+.quotes q{font-family:var(--f-title)}
+.quotes .linkbtn{margin-left:6px;font-size:12px}

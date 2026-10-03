@@ -117,3 +117,17 @@ export const OUTLINE_SYSTEM = `연구자와 나눈 상담 내용과, 데이터�
 - 절(section) 2~5개, 절마다 항목 2~5개. 항목은 연구자가 직접 문단으로 풀어 쓸 한 문장 메모다.
 - 근거가 되는 문헌은 ids에 목록 번호로만 단다. 목록에 없는 문헌은 쓰지 않고, 본문 text에 저자·연도를 따로 적지 않는다.
 - 상담에서 연구자가 관심을 보인 방향을 따르고, 이론 소개 → 핵심 개념 → 선행연구 → 이 연구와의 연결 순서가 자연스럽다.`;
+
+export const DETAIL_SYSTEM = `교육학 연구자가 선행연구 분석표를 만들려고 논문 본문을 준다. 본문의 각 쪽 앞에는 [p.N] 쪽 표시가 있다.
+- 논문에 적힌 내용만 쓴다. 본문에 없는 내용은 추측하지 않고 빈 문자열·빈 배열로 둔다.
+- 각 항목의 pages에는 그 내용이 나온 쪽 번호 N을 1~3개 쓴다.
+- 대상·인원·도구·신뢰도·통계치는 숫자를 정확히 옮긴다.
+- limitations와 future는 저자가 "연구의 한계", "제언", "후속 연구" 등에서 직접 밝힌 것만 쓴다.
+- quotes는 본문 문장을 한 글자도 바꾸지 않고 그대로 옮긴다 (원문에서 그대로 찾을 수 있어야 한다).
+- 설명은 한국어로 쓴다. 영문 논문도 항목 설명은 한국어로, quotes만 원문 언어 그대로.`;
+
+export function detailUser(meta: { title: string; year: number | null }, fields: { name: string }[], body: string) {
+  return `논문: ${meta.title}${meta.year ? ` (${meta.year})` : ""}\n분야 목록: ${fields.map((f) => f.name).join(", ")}\n\n본문:\n${body}`;
+}
+
+export const PDF_META_SYSTEM = `논문 PDF의 앞쪽 글자를 준다. 이 논문의 서지 정보를 읽는다. 학술지 머리말·꼬리말(학술지명, 권호, 쪽)도 참고한다. 본문에 없는 정보는 지어내지 않는다.`;

@@ -11,7 +11,7 @@ function stub(responses: { status?: number; body: unknown }[]) {
   vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
     calls.push({ url, init });
     const r = responses[Math.min(calls.length - 1, responses.length - 1)];
-    return new Response(JSON.stringify(r.body), { status: r.status ?? 200 });
+    return new Response(JSON.stringify(r.body), { status: r.status ?? 200, headers: { "content-type": "application/json" } });
   });
   return calls;
 }
@@ -121,5 +121,35 @@ describe("Gemini busy (503) handling", () => {
     const calls = stub([busy]);
     await expect(callAi("gemini", "AQ.test-key-1234567890", fast)).rejects.toThrow(/붐빕니다/);
     expect(calls).toHaveLength(8);
+  });
+});
+
+describe("Claude model choice", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const claudeBody = (model: string) => ({
+    id: "msg_1",
+    type: "message",
+    role: "assistant",
+    model,
+    content: [{ type: "text", text: good }],
+    stop_reason: "end_turn",
+    usage: { input_tokens: 1000, output_tokens: 100 },
+  });
+  it("uses Haiku without effort or fallbacks for cheap work, and the default model otherwise", async () => {
+    const calls = stub([{ body: claudeBody("claude-haiku-4-5") }]);
+    const r = await callAi("anthropic", "sk-ant-test", { ...req, cheap: true });
+    const sent = JSON.parse(String(calls[0].init.body));
+    expect(sent.model).toBe("claude-haiku-4-5");
+    expect(sent.output_config.effort).toBeUndefined();
+    expect(sent.fallbacks).toBeUndefined();
+    expect(r.data.terms_ko).toEqual(["읽기 평가"]);
+    expect(r.usage.costUsd).toBeCloseTo((1000 * 1 + 100 * 5) / 1_000_000);
+
+    const calls2 = stub([{ body: claudeBody("claude-sonnet-5-5") }]);
+    await callAi("anthropic", "sk-ant-test", req);
+    const sent2 = JSON.parse(String(calls2[0].init.body));
+    expect(sent2.model).toBe("claude-sonnet-5-5");
+    expect(sent2.output_config.effort).toBe("low");
+    expect(sent2.fallbacks).toBe("default");
   });
 });

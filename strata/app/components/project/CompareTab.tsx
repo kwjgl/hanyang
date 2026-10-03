@@ -9,9 +9,11 @@ import type { Candidate, ReadStatus } from "@/lib/types";
 import { FieldTags, firstAuthor, STATUS_LABEL, StatusPill, SummaryView, Tier } from "../bits";
 import { ExportMenu } from "../ExportMenu";
 import { CoreList } from "./CoreList";
+import { AnalyzeButton, DetailCells, DetailFull, detailTsv, PdfUploader } from "./PdfTools";
 import type { Citations } from "./useCitations";
 
 type Group = "sub" | "field" | "year";
+type View = "basic" | "detail";
 type RelatedKind = "citedBy" | "references" | "similar";
 
 export function CompareTab({
@@ -30,6 +32,10 @@ export function CompareTab({
   const [fieldFilter, setFieldFilter] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [out, setOut] = useState<string | null>(null);
+  const [view, setView] = useState<View>("basic");
+  const [adding, setAdding] = useState(false);
+  const canEdit = data.role !== "viewer";
+  const analyzed = rows.filter((r) => r.pdf?.details).length;
 
   const usedFields = fields.filter((f) => rows.some((r) => r.fieldIds.includes(f.id)));
   const visible = fieldFilter ? rows.filter((r) => r.fieldIds.includes(fieldFilter)) : rows;
@@ -50,6 +56,12 @@ export function CompareTab({
   }, [visible, group, subtopics, fields]);
 
   const exportTsv = () => {
+    if (view === "detail") {
+      const text = detailTsv(groups.flatMap(([, rs]) => rs));
+      setOut(text);
+      copyText(text);
+      return;
+    }
     const text = tsv(
       groups.flatMap(([k, rs]) =>
         rs.map((r) => ({
@@ -95,15 +107,28 @@ export function CompareTab({
 
   if (!rows.length)
     return (
-      <div className="empty-state">
-        <h2>아직 보관한 논문이 없습니다</h2>
-        <p>검색 결과에서 논문을 골라 요약하고, 소주제에 보관하면 여기에 비교표로 정리됩니다.</p>
-      </div>
+      <>
+        <div className="empty-state">
+          <h2>아직 보관한 논문이 없습니다</h2>
+          <p>검색 결과에서 논문을 골라 요약하고, 소주제에 보관하면 여기에 비교표로 정리됩니다. 국내 논문은 PDF를 넣어 바로 보관할 수도 있습니다.</p>
+        </div>
+        {canEdit && <PdfUploader data={data} />}
+      </>
     );
+
+  const cols = view === "detail" ? 7 : 8;
 
   return (
     <>
       <div className="toolbar">
+        <span className="seg" role="group" aria-label="비교표 보기">
+          <button type="button" aria-pressed={view === "basic"} onClick={() => setView("basic")}>
+            요약
+          </button>
+          <button type="button" aria-pressed={view === "detail"} onClick={() => setView("detail")}>
+            상세 분석{analyzed ? ` ${analyzed}` : ""}
+          </button>
+        </span>
         <span className="lbl">묶기</span>
         <span className="seg">
           {(
@@ -138,6 +163,11 @@ export function CompareTab({
           </>
         )}
         <span style={{ marginLeft: "auto", display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+          {canEdit && (
+            <button className={`btn ${adding ? "primary" : ""}`} onClick={() => setAdding(!adding)} aria-expanded={adding}>
+              PDF 넣기
+            </button>
+          )}
           <button className="btn" onClick={exportTsv}>
             표 복사 (한글·엑셀 붙여넣기)
           </button>
@@ -152,6 +182,12 @@ export function CompareTab({
           />
         </span>
       </div>
+      {adding && <PdfUploader data={data} />}
+      {view === "detail" && (
+        <p className="hint" style={{ margin: "8px 0 0" }}>
+          PDF 본문에서 뽑은 선행연구 분석표입니다. 칸마다 근거 쪽이 붙어 있습니다. PDF가 없는 논문은 행을 눌러 PDF를 넣거나, 위의 “PDF 넣기”로 여러 편을 한 번에 넣으세요.
+        </p>
+      )}
       {out && (
         <pre className="cite" onClick={() => setOut(null)} title="누르면 닫힙니다">
           {out}
@@ -160,22 +196,34 @@ export function CompareTab({
       <div className="tblwrap">
         <table className="cmp">
           <thead>
-            <tr>
-              <th style={{ width: "21%" }}>논문</th>
-              <th style={{ width: 118 }}>분야</th>
-              <th style={{ width: 96 }}>영향력</th>
-              <th style={{ width: "12%" }}>대상</th>
-              <th style={{ width: "15%" }}>설계</th>
-              <th style={{ width: "19%" }}>주요 결과</th>
-              <th style={{ width: "16%" }}>시사점</th>
-              <th style={{ width: 76 }}>상태</th>
-            </tr>
+            {view === "detail" ? (
+              <tr>
+                <th style={{ width: "19%" }}>논문</th>
+                <th style={{ width: "11%" }}>대상</th>
+                <th style={{ width: "15%" }}>설계·분석</th>
+                <th style={{ width: "12%" }}>도구 (신뢰도)</th>
+                <th style={{ width: "11%" }}>변인</th>
+                <th style={{ width: "18%" }}>주요 결과</th>
+                <th style={{ width: "14%" }}>한계·제언</th>
+              </tr>
+            ) : (
+              <tr>
+                <th style={{ width: "21%" }}>논문</th>
+                <th style={{ width: 118 }}>분야</th>
+                <th style={{ width: 96 }}>영향력</th>
+                <th style={{ width: "12%" }}>대상</th>
+                <th style={{ width: "15%" }}>설계</th>
+                <th style={{ width: "19%" }}>주요 결과</th>
+                <th style={{ width: "16%" }}>시사점</th>
+                <th style={{ width: 76 }}>상태</th>
+              </tr>
+            )}
           </thead>
           <tbody>
             {groups.map(([k, rs]) => (
               <Fragment key={k}>
                 <tr className="grp">
-                  <td colSpan={8}>
+                  <td colSpan={cols}>
                     {k} · {rs.length}편
                   </td>
                 </tr>
@@ -197,46 +245,65 @@ export function CompareTab({
                             {firstAuthor(r.paper.authors)}, {r.paper.year ?? "연도 미상"}
                             {data.members.length > 1 && r.addedBy ? ` · ${r.addedBy} 보관` : ""}
                           </div>
+                          {r.pdf && <span className={`pdfbadge ${r.pdf.details ? "done" : ""}`}>{r.pdf.details ? "PDF 분석됨" : "PDF"}</span>}
                         </td>
-                        <td>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                            <FieldTags ids={r.fieldIds} fields={fields} />
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-                            <Tier impact={r.paper.impact} year={r.paper.year} />
-                            {r.paper.citations != null && <span className="who">피인용 {r.paper.citations.toLocaleString()}</span>}
-                            {r.summary?.study_type && <span className="who">{r.summary.study_type}</span>}
-                          </div>
-                        </td>
-                        {r.summary ? (
+                        {view === "detail" ? (
+                          r.pdf?.details ? (
+                            <DetailCells d={r.pdf.details} />
+                          ) : (
+                            <td colSpan={6} className="meta">
+                              {r.pdf ? (
+                                <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                                  PDF는 넣었고 아직 분석하지 않았습니다. {canEdit && <AnalyzeButton paperId={r.paper.id} />}
+                                </span>
+                              ) : (
+                                `PDF 없음${r.summary ? ` · 초록 요약: ${r.summary.design || r.summary.one_line}` : ""}${canEdit ? " — 행을 눌러 PDF를 넣으세요" : ""}`
+                              )}
+                            </td>
+                          )
+                        ) : (
                           <>
                             <td>
-                              <div className="clamp">{r.summary.participants}</div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                <FieldTags ids={r.fieldIds} fields={fields} />
+                              </div>
                             </td>
                             <td>
-                              <div className="clamp">{r.summary.design}</div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                                <Tier impact={r.paper.impact} year={r.paper.year} />
+                                {r.paper.citations != null && <span className="who">피인용 {r.paper.citations.toLocaleString()}</span>}
+                                {r.summary?.study_type && <span className="who">{r.summary.study_type}</span>}
+                              </div>
                             </td>
+                            {r.summary ? (
+                              <>
+                                <td>
+                                  <div className="clamp">{r.summary.participants}</div>
+                                </td>
+                                <td>
+                                  <div className="clamp">{r.summary.design}</div>
+                                </td>
+                                <td>
+                                  <div className="clamp">{r.summary.findings}</div>
+                                </td>
+                                <td>
+                                  <div className="clamp">{r.summary.implications}</div>
+                                </td>
+                              </>
+                            ) : (
+                              <td colSpan={4} className="meta">
+                                요약 없음 (초록이 없어 서지 정보만 보관)
+                              </td>
+                            )}
                             <td>
-                              <div className="clamp">{r.summary.findings}</div>
-                            </td>
-                            <td>
-                              <div className="clamp">{r.summary.implications}</div>
+                              <StatusPill s={r.status} />
                             </td>
                           </>
-                        ) : (
-                          <td colSpan={4} className="meta">
-                            요약 없음 (초록이 없어 서지 정보만 보관)
-                          </td>
                         )}
-                        <td>
-                          <StatusPill s={r.status} />
-                        </td>
                       </tr>
                       {isOpen && (
                         <tr className="detail-row">
-                          <td colSpan={8}>
+                          <td colSpan={cols}>
                             <RowDetail r={r} data={data} onRelated={onRelated} projectId={project.id} />
                           </td>
                         </tr>
@@ -249,7 +316,7 @@ export function CompareTab({
           </tbody>
         </table>
       </div>
-      <p className="hint">행을 누르면 요약 전문, 원문 초록, 메모, 인용 추적이 열립니다.</p>
+      <p className="hint">행을 누르면 요약 전문, 상세 분석, 원문 초록, 메모, 인용 추적이 열립니다.</p>
       <CoreList data={data} cites={cites} onShowCore={onShowCore} />
     </>
   );
@@ -284,7 +351,17 @@ function RowDetail({ r, data, projectId, onRelated }: { r: TableRow; data: Proje
         <div className="meta" style={{ marginBottom: 6 }}>
           {p.authors.join(", ")} · <i>{p.venue ?? "학술지 미상"}</i> · {p.year ?? "연도 미상"}
         </div>
-        {r.summary ? <SummaryView s={r.summary} /> : <p className="meta">요약이 없습니다.</p>}
+        <PdfSection r={r} data={data} />
+        {r.pdf?.details ? (
+          <details style={{ marginTop: 10 }}>
+            <summary>초록 요약</summary>
+            {r.summary ? <SummaryView s={r.summary} /> : <p className="meta">요약이 없습니다.</p>}
+          </details>
+        ) : r.summary ? (
+          <SummaryView s={r.summary} />
+        ) : (
+          <p className="meta">요약이 없습니다.</p>
+        )}
         {p.abstract && (
           <details style={{ marginTop: 10 }}>
             <summary>원문 초록</summary>
@@ -443,6 +520,46 @@ function RowDetail({ r, data, projectId, onRelated }: { r: TableRow; data: Proje
             </button>
           ))}
       </div>
+    </div>
+  );
+}
+
+/** 행을 펼쳤을 때: PDF 상태와 상세 분석 */
+function PdfSection({ r, data }: { r: TableRow; data: ProjectData }) {
+  const router = useRouter();
+  const canEdit = data.role !== "viewer";
+  const [replace, setReplace] = useState(false);
+  const remove = async () => {
+    if (!confirm("넣은 PDF 본문과 분석 결과를 지울까요?")) return;
+    try {
+      await api(`/api/papers/${r.paper.id}/fulltext`, { method: "DELETE" });
+      toast("PDF를 지웠습니다");
+      router.refresh();
+    } catch (e) {
+      toast(errMsg(e));
+    }
+  };
+  if (!r.pdf) return canEdit ? <div style={{ marginBottom: 10 }}><PdfUploader data={data} paperId={r.paper.id} compact /></div> : null;
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <DetailFull r={r} />
+      <div className="acts" style={{ marginTop: 6, alignItems: "center" }}>
+        <span className="meta">
+          PDF: {r.pdf.fileName ?? "이름 없음"} · {Math.round(r.pdf.chars / 1000)}천 자{r.pdf.analyzedAt ? ` · ${r.pdf.analyzedAt.slice(0, 10)} 분석` : ""}
+        </span>
+        {canEdit && <AnalyzeButton paperId={r.paper.id} again={!!r.pdf.details} />}
+        {canEdit && (
+          <button className="btn sm" onClick={() => setReplace(!replace)}>
+            PDF 바꾸기
+          </button>
+        )}
+        {canEdit && (
+          <button className="btn sm ghost" onClick={remove}>
+            PDF 지우기
+          </button>
+        )}
+      </div>
+      {replace && <PdfUploader data={data} paperId={r.paper.id} compact onDone={() => setReplace(false)} />}
     </div>
   );
 }

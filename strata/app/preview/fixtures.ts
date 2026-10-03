@@ -3,6 +3,7 @@ import type { AlertSearch } from "@/lib/server/alerts";
 import type { SearchResult } from "@/app/components/project/useSearch";
 import type { ProjectData, ShellData, TableRow } from "@/lib/server/load";
 import type { PaperRow } from "@/lib/server/papers";
+import { type PaperDetails, summaryFromDetails } from "@/lib/details";
 import type { Field, SummaryData } from "@/lib/types";
 
 const F = (id: string, name: string, color: number, description = ""): Field => ({ id, name, description, color, position: color, hidden: false });
@@ -58,6 +59,7 @@ const row = (p: PaperRow, s: SummaryData | null, fieldIds: string[], subtopicId:
   starred: false,
   notes: [],
   elsewhere: [],
+  pdf: null,
   ...extra,
 });
 
@@ -96,6 +98,37 @@ const delgado = paper({
   impact: { pct: 99.6, influential: 55 },
   kind: "review",
 });
+// PDF로 넣은 국내 논문 예시 (가상의 논문)
+const koExample = paper({
+  id: "p5",
+  title: "(예시) 중학생의 화면 읽기와 종이 읽기 이해도 비교",
+  authors: ["예시저자", "김예시"],
+  year: 2023,
+  venue: "국어교육학연구",
+  lang: "ko",
+  sources: [],
+});
+const koDetails: PaperDetails = {
+  one_line: "중학생은 화면으로 읽을 때 설명문 이해 점수가 종이보다 조금 낮았다.",
+  purpose: { text: "읽기 매체(종이·화면)가 중학생의 설명문 이해에 미치는 영향을 검증한다.", pages: [246] },
+  questions: ["매체에 따라 설명문 이해 점수에 차이가 있는가?", "읽기 시간 제한이 매체 효과를 조절하는가?"],
+  participants: { text: "중학교 2학년 312명 (4개 학교)", n: 312, levels: ["중등"], pages: [251] },
+  design: { type: "실험·준실험", text: "학급 단위 무선 배정, 종이·화면 2집단 사후 비교", pages: [252] },
+  instruments: [{ name: "설명문 이해 검사 (자체 개발 24문항)", measures: "사실적·추론적 이해", reliability: "Cronbach α=.87", pages: [253] }],
+  variables: { independent: ["읽기 매체"], dependent: ["설명문 이해 점수"], other: ["시간 제한(조절)"] },
+  analysis: { text: "독립표본 t검정, 이원분산분석", pages: [254] },
+  findings: [
+    { text: "화면 집단의 이해 점수가 종이 집단보다 낮았다", stats: "d=0.31, p<.01", pages: [255] },
+    { text: "시간 제한 조건에서만 매체 차이가 뚜렷했다", stats: "상호작용 F=6.2, p<.05", pages: [256] },
+  ],
+  implications: "디지털 평가에서 시간 제한을 둘 때 매체 효과를 고려해야 한다.",
+  limitations: [{ text: "한 지역 학교만 표집해 일반화에 한계가 있다", pages: [259] }],
+  future: [{ text: "학년별 종단 연구로 매체 효과의 변화를 볼 필요가 있다", pages: [260] }],
+  quotes: [{ text: "화면 읽기의 불리함은 시간 압박이 있을 때 두드러졌다.", pages: [258] }],
+  keywords: ["디지털 읽기", "매체 효과", "설명문"],
+  range: { from: 245, to: 262, truncated: false },
+  pageMode: "print",
+};
 const sireci = paper({
   id: "p4",
   title: "Innovative item formats in computer-based testing: In pursuit of improved construct representation",
@@ -120,6 +153,7 @@ export const previewProject: ProjectData = {
   meId: "me",
   kciReady: true,
   scholarReady: true,
+  fulltextReady: true,
   members: [
     { user_id: "me", role: "owner", name: "나", email: "me@lab.kr" },
     { user_id: "u2", role: "editor", name: "김민지", email: "minji@lab.kr" },
@@ -189,6 +223,7 @@ export const previewProject: ProjectData = {
       "s3",
       { addedBy: "김민지" },
     ),
+    row(koExample, summaryFromDetails(koDetails, ["국어교육"]), ["kor"], "s2", { pdf: { chars: 42000, fileName: "예시논문.pdf", details: koDetails, analyzedAt: "2026-10-02T00:00:00Z" } }),
   ],
 };
 
