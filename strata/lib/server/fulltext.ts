@@ -2,7 +2,7 @@ import { DetailSchema, PdfMetaSchema } from "@/lib/claude/schemas";
 import { DETAIL_SYSTEM, detailUser, PDF_META_SYSTEM } from "@/lib/claude/prompts";
 import { pickWork } from "@/lib/consult";
 import { cleanDetails, type PaperDetails, summaryFromDetails } from "@/lib/details";
-import { bodyForAi, findDoi, splitReferences } from "@/lib/pdf-text";
+import { bodyForAi, findDoi, sanitizeText, splitReferences } from "@/lib/pdf-text";
 import { searchCrossref } from "@/lib/sources/crossref";
 import { lookupByDoi } from "@/lib/sources/lookup";
 import { openAlexByTitle } from "@/lib/sources/openalex";
@@ -34,7 +34,7 @@ function checkInput(p: PdfInput): PdfInput {
   if (chars > MAX_CHARS) throw new HttpError(400, "PDF 글자가 너무 많습니다");
   if (chars < 200) throw new HttpError(400, "글자가 거의 없는 PDF입니다. 스캔한 이미지 PDF는 글자를 읽을 수 없습니다.");
   const off = p.pageOffset;
-  return { pages: p.pages, pageOffset: typeof off === "number" && off >= 0 && off < 5000 ? Math.round(off) : null, fileName: p.fileName?.slice(0, 200) ?? null };
+  return { pages: p.pages.map(sanitizeText), pageOffset: typeof off === "number" && off >= 0 && off < 5000 ? Math.round(off) : null, fileName: p.fileName ? sanitizeText(p.fileName).slice(0, 200) : null };
 }
 
 /** 이 논문이 이 프로젝트에 보관돼 있는지 (본문은 보관한 프로젝트 멤버만 볼 수 있다) */
@@ -80,10 +80,10 @@ async function identify(supabase: Supa, userId: string, pages: string[]): Promis
     maxTokens: 1500,
     cheap: true,
   });
-  const title = m.title.replace(/\s+/g, " ").trim();
+  const title = sanitizeText(m.title).replace(/\s+/g, " ").trim();
   if (!title) throw new HttpError(422, "PDF에서 논문 제목을 찾지 못했습니다. 이미 보관한 논문 행의 “PDF 넣기”로 넣어 주세요.");
   const year = m.year > 1900 && m.year < 2100 ? Math.round(m.year) : null;
-  const authors = m.authors.map((a) => a.trim()).filter(Boolean);
+  const authors = m.authors.map((a) => sanitizeText(a).trim()).filter(Boolean);
   const named = { author: authors[0] ?? "", year, title };
   // 데이터베이스에 같은 논문이 있으면 DOI·피인용 수 등을 함께 얻는다
   const [oa, cr] = await Promise.all([
@@ -91,7 +91,7 @@ async function identify(supabase: Supa, userId: string, pages: string[]): Promis
     hasHangul(title) ? searchCrossref(`${title} ${named.author}`, { rows: 8 }).then((r) => r.items).catch(() => [] as Candidate[]) : Promise.resolve([] as Candidate[]),
   ]);
   const hit = named.author ? pickWork(named, [...(oa ? [oa] : []), ...cr]) : oa;
-  const abstract = m.abstract.trim() || null;
+  const abstract = sanitizeText(m.abstract).trim() || null;
   if (hit) {
     return {
       candidate: { ...hit, abstract: hit.abstract && hit.abstract.length >= (abstract?.length ?? 0) ? hit.abstract : abstract, abstractSource: hit.abstract ? hit.abstractSource : abstract ? "pdf" : null },
@@ -106,7 +106,7 @@ async function identify(supabase: Supa, userId: string, pages: string[]): Promis
       title,
       authors,
       year,
-      venue: m.venue.trim() || null,
+      venue: sanitizeText(m.venue).trim() || null,
       abstract,
       abstractSource: abstract ? "pdf" : null,
       citations: null,

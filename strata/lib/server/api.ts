@@ -28,7 +28,9 @@ export function route<Ctx = unknown>(
     } catch (e) {
       if (e instanceof HttpError || e instanceof ClaudeError) return json({ error: e.message }, e.status);
       console.error(e);
-      return json({ error: "처리하지 못했습니다. 잠시 뒤 다시 시도해 주세요." }, 500);
+      // 예상 못 한 오류도 원인 한 줄을 함께 보여 준다 (알려 주면 고치기 쉽다)
+      const why = e instanceof Error ? e.message.replace(/\s+/g, " ").slice(0, 160) : "";
+      return json({ error: `처리하지 못했습니다. 잠시 뒤 다시 시도해 주세요.${why ? ` (원인: ${why})` : ""}` }, 500);
     }
   };
 }

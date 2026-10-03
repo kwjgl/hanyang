@@ -12,6 +12,16 @@ export interface TextItem {
   hasEOL?: boolean;
 }
 
+/**
+ * DB에 넣을 수 없는 글자를 지운다. 한글(HWP)로 만든 PDF에는 보이지 않는 제어 문자(NUL 등)나
+ * 짝이 깨진 문자가 섞여 있는 경우가 많은데, Postgres는 이런 글자가 든 값을 저장하지 못한다.
+ */
+export function sanitizeText(s: string): string {
+  return s
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\uFFFE\uFFFF]/g, "")
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
+}
+
 /** pdf.js 글자 조각을 줄 단위 글로. 같은 줄의 조각은 간격이 있을 때만 띄어 쓴다 (한글은 글자마다 조각나는 PDF가 많다) */
 export function pageTextFromItems(items: TextItem[]): string {
   let out = "";
@@ -33,7 +43,7 @@ export function pageTextFromItems(items: TextItem[]): string {
       if (prev) prev = { ...prev, y: Number.NaN };
     }
   }
-  return out
+  return sanitizeText(out)
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

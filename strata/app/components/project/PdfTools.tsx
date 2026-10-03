@@ -45,16 +45,21 @@ export function PdfUploader({ data, paperId, compact, onDone }: { data: ProjectD
     const set = (i: number, j: Partial<Job>) => setJobs((js) => js.map((x, k) => (k === i ? { ...x, ...j } : x)));
     const { extractPdf } = await import("@/lib/pdf-extract");
     let ok = 0;
+    let saved = 0;
     for (let i = 0; i < pdfs.length; i++) {
+      let stage = "PDF 읽기";
       try {
         const pdf = await extractPdf(pdfs[i], (d, t) => set(i, { note: `글자 읽는 중… ${d}/${t}쪽` }));
         if (pdf.scanned) throw new Error("스캔한 이미지 PDF라 글자를 읽을 수 없습니다");
+        stage = paperId ? "저장" : "논문 찾기·보관";
         set(i, { state: "find", note: paperId ? "저장하는 중…" : "어떤 논문인지 찾는 중…" });
         const r = await api<Added>(`/api/projects/${data.project.id}/pdf`, { body: { pages: pdf.pages, pageOffset: pdf.pageOffset, fileName: pdf.fileName, paperId } });
+        saved++;
         const who = `${r.authors[0] ?? "저자 미상"}${r.authors.length > 1 ? " 외" : ""} (${r.year ?? "연도 미상"})`;
         const placed = paperId ? HOW.attached : r.added ? HOW[r.how] : "이미 보관한 논문에 붙였습니다";
         const pageNote = pdf.pageOffset != null ? `학술지 쪽 번호 ${pdf.pageOffset + 1}–${pdf.pageOffset + pdf.pages.length}` : `${pdf.pages.length}쪽 (학술지 쪽 번호를 못 찾아 PDF 쪽 번호로 표시)`;
         if (analyze) {
+          stage = "분석 (PDF는 저장됨 — 행을 펼쳐 “분석하기”로 다시 할 수 있음)";
           set(i, { state: "analyze", note: `${r.title} — ${who}. 분석하는 중… (20~40초)` });
           await api(`/api/papers/${r.paperId}/analyze`, { body: {} });
         }
@@ -63,13 +68,13 @@ export function PdfUploader({ data, paperId, compact, onDone }: { data: ProjectD
       } catch (e) {
         const m = errMsg(e);
         if (/SQL/.test(m)) setNeedSql(true);
-        set(i, { state: "error", note: m });
+        set(i, { state: "error", note: `${stage} 단계: ${m}` });
       }
     }
     running.current = false;
     setBusy(false);
+    if (saved) router.refresh();
     if (ok) {
-      router.refresh();
       onDone?.();
     }
   };

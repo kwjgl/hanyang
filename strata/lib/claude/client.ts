@@ -66,6 +66,8 @@ export async function callStructured<S extends z.ZodType>(opts: {
     if (e instanceof Anthropic.BadRequestError) throw new ClaudeError(`요청 형식 오류: ${e.message}`, 400);
     if (e instanceof Anthropic.APIConnectionError) throw new ClaudeError("Claude에 연결하지 못했습니다.", 503);
     if (e instanceof Anthropic.APIError) throw new ClaudeError(`Claude 오류 (${e.status ?? "?"})`, 502);
+    // 응답을 스키마대로 읽지 못한 경우 등 (HTTP 오류가 아닌 SDK 오류)
+    if (e instanceof Anthropic.AnthropicError) throw new ClaudeError("Claude 응답을 읽지 못했습니다. 다시 시도해 주세요.", 502);
     throw e;
   }
 }

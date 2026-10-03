@@ -1,6 +1,6 @@
 import { LEVELS, STUDY_TYPES } from "@/lib/claude/schemas";
 import type { DetailResult } from "@/lib/claude/schemas";
-import { locateQuote } from "@/lib/pdf-text";
+import { locateQuote, sanitizeText } from "@/lib/pdf-text";
 import type { StudyType, SummaryData } from "@/lib/types";
 
 /** 근거 쪽이 붙은 한 항목 */
@@ -32,7 +32,7 @@ export interface PaperDetails {
   pageMode: "print" | "pdf";
 }
 
-const clean = (s: string | undefined | null) => (s ?? "").replace(/\s+/g, " ").trim();
+const clean = (s: string | undefined | null) => sanitizeText(s ?? "").replace(/\s+/g, " ").trim();
 const list = (xs: string[] | undefined) => [...new Set((xs ?? []).map(clean).filter(Boolean))];
 
 /**

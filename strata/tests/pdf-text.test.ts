@@ -62,3 +62,24 @@ describe("helpers", () => {
     expect(locateQuote("독자는 정보를 반드시 의심해야 한다.", pages, null)).toBeNull();
   });
 });
+
+describe("sanitizeText", () => {
+  it("removes characters Postgres cannot store, keeps text and emoji", async () => {
+    const { sanitizeText } = await import("@/lib/pdf-text");
+    expect(sanitizeText("가\u0000나\u0007다\n라\t마")).toBe("가나다\n라\t마");
+    expect(sanitizeText("a\ud800b\udc00c 😀")).toBe("abc 😀");
+  });
+  it("lets the cleaned text into a jsonb column", async () => {
+    const { PGlite } = await import("@electric-sql/pglite");
+    const { sanitizeText } = await import("@/lib/pdf-text");
+    const db = new PGlite();
+    await db.exec("create table t (pages jsonb)");
+    const raw = ["국어\u0000교육\ud800학"];
+    await expect(db.query("insert into t values ($1)", [JSON.stringify(raw)])).rejects.toThrow();
+    await db.query("insert into t values ($1)", [JSON.stringify(raw.map(sanitizeText))]);
+    expect((await db.query<{ p: string }>("select pages->>0 as p from t")).rows[0].p).toBe("국어교육학");
+  });
+  it("cleans text built from pdf.js items", () => {
+    expect(pageTextFromItems([item("국어\u0000교육", 0, 700)])).toBe("국어교육");
+  });
+});

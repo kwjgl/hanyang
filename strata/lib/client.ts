@@ -8,7 +8,13 @@ export async function api<T = unknown>(path: string, init: { method?: string; bo
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? `요청 실패 (${res.status})`);
+  if (!res.ok) {
+    const msg = (data as { error?: string }).error;
+    if (msg) throw new Error(msg);
+    if (res.status === 504) throw new Error("시간이 너무 오래 걸려 중단됐습니다. 잠시 뒤 다시 시도해 주세요.");
+    if (res.status === 413) throw new Error("보내는 내용이 너무 큽니다.");
+    throw new Error(`요청 실패 (${res.status})`);
+  }
   return data as T;
 }
 
