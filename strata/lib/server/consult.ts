@@ -3,6 +3,7 @@ import { CONSULT_SYSTEM, consultUser, OUTLINE_SYSTEM } from "@/lib/claude/prompt
 import { type Consult, type ConsultMsg, type ConsultTheory, type ConsultWork, historyText, MAX_MESSAGES, outlineBody, pickWork, sameWork, verifiedWorks } from "@/lib/consult";
 import { searchCrossref } from "@/lib/sources/crossref";
 import { searchOpenAlex } from "@/lib/sources/openalex";
+import { searchScholar, serpKey } from "@/lib/sources/scholar";
 import type { Supa } from "@/lib/supabase/server";
 import { hasHangul } from "@/lib/text";
 import type { Candidate, SearchPage } from "@/lib/types";
@@ -29,10 +30,32 @@ async function verifyWork(w: { author: string; year: number; title: string }, sa
   if (mine) return { ...named, status: "verified", candidate: mine.candidate, paperId: mine.paperId };
   const lists = await Promise.all([
     settle(searchOpenAlex(named.title, { perPage: 8 })),
-    hasHangul(named.title) ? settle(searchCrossref(named.title, { rows: 8 })) : Promise.resolve([] as Candidate[]),
+    // Crossref는 제목과 저자를 함께 넣어도 알아서 나눠 찾는다
+    hasHangul(named.title) ? settle(searchCrossref(`${named.title} ${named.author}`, { rows: 10 })) : Promise.resolve([] as Candidate[]),
   ]);
   const hit = pickWork(named, lists.flat());
   return hit ? { ...named, status: "verified", candidate: hit, paperId: null } : { ...named, status: "unverified" };
+}
+
+/** 한 번 답할 때 구글 학술검색으로 다시 확인하는 최대 편수 (SerpApi 1편당 1회) */
+const MAX_SCHOLAR = 3;
+
+/**
+ * 데이터베이스에서 못 찾은 문헌을 구글 학술검색으로 한 번 더 찾는다.
+ * 구글 학술검색은 KCI·DBpia·RISS를 함께 훑어 국내 문헌과 책을 잘 찾는다. 국문 문헌을 먼저 확인한다.
+ */
+async function verifyWithScholar(works: ConsultWork[]) {
+  const todo = works
+    .filter((w) => w.status === "unverified")
+    .sort((a, b) => Number(hasHangul(b.title)) - Number(hasHangul(a.title)))
+    .slice(0, MAX_SCHOLAR);
+  await Promise.all(
+    todo.map(async (w) => {
+      const hit = pickWork(w, await settle(searchScholar(`${w.title} ${w.author}`)));
+      w.scholar = true;
+      if (hit) Object.assign(w, { status: "verified", candidate: hit, paperId: null });
+    }),
+  );
 }
 
 async function context(supabase: Supa, projectId: string) {
@@ -64,7 +87,14 @@ export async function loadConsult(supabase: Supa, consultId: string): Promise<Co
  * 권한 문헌은 데이터베이스에서 찾은 것만 "확인됨"으로 표시해, 지어낸 문헌을 인용하지 않게 한다.
  * consultId가 없으면 새 상담을 만든다.
  */
-export async function consultTurn(supabase: Supa, userId: string, projectId: string, consultId: string | null, text: string): Promise<Consult> {
+export async function consultTurn(
+  supabase: Supa,
+  userId: string,
+  projectId: string,
+  consultId: string | null,
+  text: string,
+  opts: { scholar?: boolean } = {},
+): Promise<Consult> {
   const message = text.trim().slice(0, 3000);
   if (message.length < 2) throw new HttpError(400, "상담할 내용을 써 주세요.");
   const prev = consultId ? await loadConsult(supabase, consultId) : null;
@@ -93,6 +123,7 @@ export async function consultTurn(supabase: Supa, userId: string, projectId: str
         works: await Promise.all(t.works.filter((w) => w.author.trim() && w.title.trim()).slice(0, MAX_WORKS).map((w) => verifyWork(w, saved))),
       })),
   );
+  if (opts.scholar && serpKey()) await verifyWithScholar(theories.flatMap((t) => t.works));
   // 다른 프로젝트에 보관한 것도 표시하려고 자리 정보를 붙인다
   const found = theories.flatMap((t) => t.works).filter((w) => w.candidate);
   if (found.length) {

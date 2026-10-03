@@ -439,3 +439,5 @@ a.acct[aria-current="page"]{box-shadow:0 0 0 2px var(--accent-soft)}
 .q-chips .chip{cursor:pointer;text-align:left;color:var(--ink)}
 .chat-input{display:flex;gap:8px;align-items:flex-end}
 .chat-input textarea{flex:1;resize:vertical;font-size:14.5px;line-height:1.6}
+.chat-send{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.chat-send .chk{font-size:12.5px;white-space:nowrap}

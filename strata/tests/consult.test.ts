@@ -132,3 +132,39 @@ describe("outlineBody", () => {
     expect(citations.map((c) => c.inText)).toEqual(["(Kintsch, 1988)", "(옥현진, 서수현, 2013)"]);
   });
 });
+
+describe("Korean authors written in English", () => {
+  it("matches romanized surnames", async () => {
+    const { koreanSurname, romanizedHas } = await import("@/lib/korean-names");
+    expect(koreanSurname("옥현진")?.romans).toContain("ok");
+    expect(koreanSurname("남궁민")?.surname).toBe("남궁");
+    expect(koreanSurname("이")?.surname).toBe("이");
+    expect(romanizedHas("옥현진", "Hyunjin Ok")).toBe(true);
+    expect(romanizedHas("옥현진", "Ok, Hyun-Jin")).toBe(true);
+    expect(romanizedHas("이수진", "Soojin Lee")).toBe(true);
+    expect(romanizedHas("이수진", "Soojin Rhee")).toBe(true);
+    expect(romanizedHas("옥현진", "Minji Kim")).toBe(false);
+    expect(authorMatches("옥현진", ["HJ Ok", "SH Seo"])).toBe(true);
+    expect(authorMatches("김종윤", ["Jongyun Kim"])).toBe(true);
+    expect(authorMatches("김종윤", ["Jongyun Park"])).toBe(false);
+    expect(authorMatches("Ok", ["옥현진"])).toBe(true);
+  });
+  it("verifies a Korean paper listed with English authors or an English first title", () => {
+    const named = { author: "옥현진", year: 2013, title: "디지털 텍스트 읽기 평가의 방향" };
+    const english = cand({ title: "디지털 텍스트 읽기 평가의 방향", authors: ["Hyunjin Ok"], year: 2013, sources: ["crossref"] });
+    const altFirst = cand({ title: "Directions for assessing digital text reading", altTitles: ["디지털 텍스트 읽기 평가의 방향"], authors: ["옥현진"], year: 2013 });
+    const different = cand({ title: "디지털 교과서의 활용 방안", authors: ["Hyunjin Ok"], year: 2013 });
+    expect(sameWork(named, english)).toBe(true);
+    expect(sameWork(named, altFirst)).toBe(true);
+    expect(sameWork(named, different)).toBe(false);
+  });
+});
+
+describe("Crossref alternate titles", () => {
+  it("keeps the other-language title", async () => {
+    const { parseCrossrefItem } = await import("@/lib/sources/crossref");
+    const c = parseCrossrefItem({ DOI: "10.1234/kr.1", title: ["Directions for assessing digital text reading", "디지털 텍스트 읽기 평가의 방향"], author: [{ given: "Hyunjin", family: "Ok" }] });
+    expect(c?.altTitles).toEqual(["디지털 텍스트 읽기 평가의 방향"]);
+    expect(parseCrossrefItem({ DOI: "10.1234/kr.2", title: ["Only one"] })?.altTitles).toBeUndefined();
+  });
+});

@@ -1,5 +1,6 @@
 import { type CitedRef, inTextCitation } from "@/lib/cite";
 import { coverage, queryWords } from "@/lib/search/rank";
+import { koreanSurname, romanizedHas } from "@/lib/korean-names";
 import { hasHangul } from "@/lib/text";
 import type { Candidate } from "@/lib/types";
 
@@ -13,6 +14,8 @@ export interface ConsultWork {
   candidate?: Candidate & { placements?: { projectId: string; projectName: string }[] };
   /** 이 프로젝트에 이미 보관한 논문이면 그 id */
   paperId?: string | null;
+  /** 구글 학술검색으로도 찾아봤는지 */
+  scholar?: boolean;
 }
 
 export interface ConsultTheory {
@@ -64,7 +67,9 @@ export function authorMatches(named: string, authors: string[]): boolean {
   const s = surnameOf(named);
   if (s.length < 2) return false;
   return authors.some((a) => {
-    if (hasHangul(s)) return a.replace(/\s+/g, "").includes(s);
+    // 국내 학술지는 저자를 영문으로 올리는 일이 많다: "옥현진" ↔ "Hyunjin Ok"
+    if (hasHangul(s)) return hasHangul(a) ? a.replace(/\s+/g, "").includes(s) : romanizedHas(s, a);
+    if (hasHangul(a)) return !!koreanSurname(a)?.romans.includes(s);
     const n = norm(a);
     const tokens = n.split(/[\s-]+/);
     return tokens.includes(s) || n.replace(/\s+/g, "") === s.replace(/\s+/g, "") || n.endsWith(` ${s}`);
@@ -92,9 +97,9 @@ export function titleMatch(named: string, found: string): number {
  * AI가 말한 문헌과 데이터베이스에서 찾은 논문이 같은 것인지.
  * 저자 성이 맞고 제목이 거의 같아야 한다. 연도는 재판·번역판이 있어 제목이 아주 같으면 조금 달라도 된다.
  */
-export function sameWork(w: Pick<ConsultWork, "author" | "year" | "title">, c: Pick<Candidate, "authors" | "year" | "title">): boolean {
+export function sameWork(w: Pick<ConsultWork, "author" | "year" | "title">, c: Pick<Candidate, "authors" | "year" | "title" | "altTitles">): boolean {
   if (!authorMatches(w.author, c.authors)) return false;
-  const t = titleMatch(w.title, c.title);
+  const t = Math.max(...[c.title, ...(c.altTitles ?? [])].map((x) => titleMatch(w.title, x)));
   const gap = w.year && c.year ? Math.abs(w.year - c.year) : 0;
   return t >= 0.85 || (t >= 0.6 && gap <= 2);
 }

@@ -17,6 +17,6 @@ export const GET = route<RouteCtx<{ id: string }>>(async ({ supabase, ctx }) => 
 /** 새 상담을 첫 질문과 함께 시작한다 */
 export const POST = route<RouteCtx<{ id: string }>>(async ({ req, supabase, userId, ctx }) => {
   const { id } = await ctx.params;
-  const b = await body<{ text: string }>(req);
-  return json({ consult: await consultTurn(supabase, userId, id, null, String(b.text ?? "")) });
+  const b = await body<{ text: string; scholar?: boolean }>(req);
+  return json({ consult: await consultTurn(supabase, userId, id, null, String(b.text ?? ""), { scholar: !!b.scholar }) });
 });

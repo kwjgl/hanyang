@@ -27,6 +27,7 @@ export function ConsultPanel({ data, onSearch, onDraft }: { data: ProjectData; o
   const [busy, setBusy] = useState<"" | "send" | "outline">("");
   const [pendingText, setPendingText] = useState("");
   const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set());
+  const [scholar, setScholar] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -66,7 +67,7 @@ export function ConsultPanel({ data, onSearch, onDraft }: { data: ProjectData; o
     setPendingText(t);
     setInput("");
     try {
-      const r = await api<{ consult: Consult }>(cur ? `${base}/${cur.id}` : base, { body: { text: t } });
+      const r = await api<{ consult: Consult }>(cur ? `${base}/${cur.id}` : base, { body: { text: t, scholar: data.scholarReady && scholar } });
       setCur(r.consult);
       setList((l) => [{ id: r.consult.id, title: r.consult.title, updated_at: r.consult.updated_at }, ...(l ?? []).filter((x) => x.id !== r.consult.id)]);
     } catch (e) {
@@ -213,9 +214,16 @@ export function ConsultPanel({ data, onSearch, onDraft }: { data: ProjectData; o
               aria-label="상담 내용"
               disabled={!!busy}
             />
-            <button className="btn primary" onClick={() => send()} disabled={!input.trim() || !!busy}>
-              보내기
-            </button>
+            <div className="chat-send">
+              <button className="btn primary" onClick={() => send()} disabled={!input.trim() || !!busy}>
+                보내기
+              </button>
+              {data.scholarReady && (
+                <label className="chk" title="데이터베이스에서 못 찾은 문헌(특히 국내 문헌·책)을 구글 학술검색에서 한 번 더 찾습니다. 한 번 답할 때 최대 3회 사용">
+                  <input type="checkbox" checked={scholar} onChange={(e) => setScholar(e.target.checked)} /> 구글로도 확인
+                </label>
+              )}
+            </div>
           </div>
         ))}
       <p className="hint" style={{ marginTop: 8 }}>
@@ -300,7 +308,7 @@ function Theory({
                 {w.author} ({w.year ?? "연도 미상"}). {w.title}
               </div>
               <div className="meta">
-                데이터베이스에서 찾지 못했습니다(책·국내 문헌이면 흔합니다).{" "}
+                {w.scholar ? "데이터베이스와 구글 학술검색에서 찾지 못했습니다. 제목이 다르게 기억됐거나 없는 문헌일 수 있습니다." : "데이터베이스에서 찾지 못했습니다(책·국내 문헌이면 흔합니다)."}{" "}
                 <a href={scholarLink(w)} target="_blank" rel="noreferrer">
                   구글 학술검색에서 직접 확인 ↗
                 </a>

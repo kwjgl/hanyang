@@ -15,8 +15,8 @@ export const GET = route<Ctx>(async ({ supabase, ctx }) => {
 /** 이어서 묻기 */
 export const POST = route<Ctx>(async ({ req, supabase, userId, ctx }) => {
   const { id, consultId } = await ctx.params;
-  const b = await body<{ text: string }>(req);
-  return json({ consult: await consultTurn(supabase, userId, id, consultId, String(b.text ?? "")) });
+  const b = await body<{ text: string; scholar?: boolean }>(req);
+  return json({ consult: await consultTurn(supabase, userId, id, consultId, String(b.text ?? ""), { scholar: !!b.scholar }) });
 });
 
 /** 제목 바꾸기 */

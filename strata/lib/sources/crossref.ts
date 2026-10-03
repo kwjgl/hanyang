@@ -33,6 +33,7 @@ export function parseCrossrefItem(it: CrossrefItem): Candidate | null {
   // 국내 학술지는 제목 배열에 국문·영문이 함께 오는 경우가 많다. 첫 번째(원제)를 쓴다.
   const title = cleanTitle(it.title?.[0]);
   if (!title) return null;
+  const alt = (it.title ?? []).slice(1).map(cleanTitle).filter((t): t is string => !!t && t !== title);
   const doi = normalizeDoi(it.DOI);
   const year = it.issued?.["date-parts"]?.[0]?.[0] ?? null;
   const abstract = stripTags(it.abstract);
@@ -55,6 +56,7 @@ export function parseCrossrefItem(it: CrossrefItem): Candidate | null {
     ids: { crossref: doi ?? undefined },
     sources: ["crossref"],
     impact: {},
+    ...(alt.length ? { altTitles: alt } : {}),
   };
 }
 
