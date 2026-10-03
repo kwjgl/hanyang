@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type CitedRef, citedInBody, inTextCitation, insertCitation, paragraphAt, referenceList } from "@/lib/cite";
-import { api, copyText, errMsg, toast } from "@/lib/client";
+import { api, copyText, errMsg, scholarUsed, toast } from "@/lib/client";
 import type { CiteClaimOut, CiteRec } from "@/lib/server/cite";
 import type { ProjectData } from "@/lib/server/load";
 import { WRITING_SQL } from "@/lib/writing-sql";
@@ -142,6 +142,7 @@ export function WriteTab({ data, onSearch }: { data: ProjectData; onSearch: (q: 
     try {
       const r = await api<{ claims: CiteClaimOut[] }>(`/api/projects/${data.project.id}/cite`, { body: { text, scholar } });
       setClaims(r.claims);
+      if (scholar) scholarUsed();
       if (!r.claims.length) toast("근거가 필요한 문장을 찾지 못했습니다");
     } catch (e) {
       toast(errMsg(e));

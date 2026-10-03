@@ -43,3 +43,8 @@ export function downloadText(filename: string, text: string, mime = "text/plain"
 
 /** 파일 이름에 쓸 수 없는 글자를 뺀다 */
 export const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) || "strata";
+
+/** 구글 학술검색을 썼을 수 있는 작업 뒤에 불러, 사이드바의 남은 횟수를 새로 고치게 한다 */
+export const scholarUsed = () => {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("strata:scholar"));
+};

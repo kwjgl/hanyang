@@ -12,6 +12,7 @@ export function Sidebar({ data }: { data: ShellData }) {
   const sp = useSearchParams();
   const router = useRouter();
   const [open, setOpen] = useState(DEFAULT_OPEN);
+  const gs = useScholarQuota();
   // 앱을 열면 일주일이 지난 저장 검색을 조용히 다시 확인한다 (창을 열 때 한 번)
   useEffect(() => {
     if (data.alerts == null) return;
@@ -125,8 +126,44 @@ export function Sidebar({ data }: { data: ShellData }) {
         <span>
           {data.me.name}
           <small>이번 달 AI 사용 ${data.monthUsage.toFixed(2)}</small>
+          {gs && (
+            <small title={`구글 학술검색(SerpApi)은 연구실이 함께 쓰는 키입니다.${gs.used != null ? ` 이번 달 ${gs.used}회 사용.` : ""} 검색 한 번에 1회씩 줄고, 매달 다시 채워집니다.`}>
+              구글(공용) {gs.left}{gs.limit != null ? `/${gs.limit}` : ""}회 남음
+            </small>
+          )}
         </span>
       </Link>
     </aside>
   );
+}
+
+type Quota = { left: number; used: number | null; limit: number | null };
+
+/** 구글 학술검색(SerpApi) 남은 횟수. 조회 자체는 횟수를 쓰지 않는다. 검색 뒤(strata:scholar)에 다시 읽는다 */
+function useScholarQuota(): Quota | null {
+  const [q, setQ] = useState<Quota | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const load = () =>
+      fetch("/api/scholar/status")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((r: { ready?: boolean; ok?: boolean; left?: number | null; used?: number | null; limit?: number | null } | null) => {
+          if (alive) setQ(r?.ready && r.ok && r.left != null ? { left: r.left, used: r.used ?? null, limit: r.limit ?? null } : null);
+        })
+        .catch(() => {});
+    // 검색이 몰려도 한 번만 다시 읽는다 (SerpApi 계정 정보는 몇 초 늦게 바뀐다)
+    const later = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(load, 2500);
+    };
+    load();
+    window.addEventListener("strata:scholar", later);
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("strata:scholar", later);
+    };
+  }, []);
+  return q;
 }

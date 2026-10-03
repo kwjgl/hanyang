@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isClassic } from "@/lib/cite";
-import { api, errMsg, toast } from "@/lib/client";
+import { api, errMsg, scholarUsed, toast } from "@/lib/client";
 import { type Consult, type ConsultMsg, type ConsultTheory, type ConsultWork, MAX_MESSAGES, refKey, scholarLink, verifiedWorks } from "@/lib/consult";
 import type { ProjectData } from "@/lib/server/load";
 import { firstAuthor, Tier } from "../bits";
@@ -69,6 +69,7 @@ export function ConsultPanel({ data, onSearch, onDraft }: { data: ProjectData; o
     try {
       const r = await api<{ consult: Consult }>(cur ? `${base}/${cur.id}` : base, { body: { text: t, scholar: data.scholarReady && scholar } });
       setCur(r.consult);
+      if (data.scholarReady && scholar) scholarUsed();
       setList((l) => [{ id: r.consult.id, title: r.consult.title, updated_at: r.consult.updated_at }, ...(l ?? []).filter((x) => x.id !== r.consult.id)]);
     } catch (e) {
       setInput(t);

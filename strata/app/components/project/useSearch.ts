@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
-import { api, errMsg, toast } from "@/lib/client";
+import { api, errMsg, scholarUsed, toast } from "@/lib/client";
 import type { Placement } from "@/lib/server/membership";
 import type { PaperRow } from "@/lib/server/papers";
 import { hasHangul } from "@/lib/text";
@@ -98,6 +98,7 @@ export function useSearch(projectId: string, defaultQuery: string, initial?: Sea
         toast(errMsg(e));
       } finally {
         setPhase("idle");
+        if (sources.includes("scholar")) scholarUsed();
       }
     },
     [query, chips, autoExpand, expandedFor, projectId, sources, scope],
@@ -126,6 +127,7 @@ export function useSearch(projectId: string, defaultQuery: string, initial?: Sea
         hasMore: !!r.hasMore && fresh.length > 0,
       });
       toast(fresh.length ? `${fresh.length}건을 더 가져왔습니다` : "더 가져올 새 논문이 없습니다");
+      if (sources.includes("scholar")) scholarUsed();
     } catch (e) {
       toast(errMsg(e));
     } finally {
