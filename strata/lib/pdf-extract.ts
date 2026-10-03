@@ -17,8 +17,9 @@ export const MAX_PDF_PAGES = 300;
  * pdf.js는 무거워서 쓸 때만 불러온다.
  */
 export async function extractPdf(file: File, onProgress?: (done: number, total: number) => void): Promise<ExtractedPdf> {
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+  // legacy 빌드: 최신 문법(Map.getOrInsertComputed 등)을 아직 모르는 Safari·옛 브라우저용 보완 코드가 들어 있다
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
   const data = new Uint8Array(await file.arrayBuffer());
   const task = pdfjs.getDocument({ data });
   let doc;
@@ -33,8 +34,7 @@ export async function extractPdf(file: File, onProgress?: (done: number, total: 
   const pages: string[] = [];
   for (let i = 1; i <= total; i++) {
     const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-    pages.push(pageTextFromItems(content.items.filter((x): x is TextItem & typeof x => "str" in x) as TextItem[]));
+    pages.push(pageTextFromItems(await readTextItems(page.streamTextContent())));
     page.cleanup();
     onProgress?.(i, total);
   }
@@ -46,4 +46,19 @@ export async function extractPdf(file: File, onProgress?: (done: number, total: 
     chars: pages.reduce((n, p) => n + p.length, 0),
     scanned: looksScanned(pages),
   };
+}
+
+/**
+ * 쪽의 글자 조각을 읽는다. pdf.js의 getTextContent는 `for await`로 스트림을 읽는데,
+ * Safari는 스트림을 그렇게 읽지 못해 "undefined is not a function" 오류가 난다. 그래서 reader로 직접 읽는다.
+ */
+async function readTextItems(stream: ReadableStream<{ items: unknown[] }>): Promise<TextItem[]> {
+  const reader = stream.getReader();
+  const items: TextItem[] = [];
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    for (const it of value?.items ?? []) if (it && typeof it === "object" && "str" in it) items.push(it as TextItem);
+  }
+  return items;
 }
